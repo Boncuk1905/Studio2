@@ -529,16 +529,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 gradient.addColorStop(0.5, `rgba(255,255,255,${img.mirrorOpacity * 0.3})`);
                 gradient.addColorStop(1, 'rgba(255,255,255,0)');
                 
-                // Apply gradient mask
-                exportCtx.save();
-                exportCtx.globalCompositeOperation = 'destination-over';
-                exportCtx.fillStyle = gradient;
-                exportCtx.fillRect(
-                    x, y + imgHeight,
-                    imgWidth, imgHeight + img.mirrorDistance * exportScale
-                );
-                exportCtx.restore();
-                
+                //// Draw reflected image
+exportCtx.save();
+exportCtx.globalAlpha = img.mirrorOpacity;
+
+if (img.flipped) {
+    exportCtx.translate(x + imgWidth, y + imgHeight * 2 + img.mirrorDistance * exportScale);
+    exportCtx.scale(-1, -1);
+} else {
+    exportCtx.translate(x, y + imgHeight * 2 + img.mirrorDistance * exportScale);
+    exportCtx.scale(1, -1);
+}
+
+exportCtx.drawImage(
+    img.element,
+    0, 0, img.originalWidth, img.originalHeight,
+    0, 0, imgWidth, imgHeight
+);
+exportCtx.restore();
+
+// Apply gradient mask ON TOP of the reflection
+exportCtx.save();
+exportCtx.translate(0, 0);
+exportCtx.globalCompositeOperation = 'destination-in';
+const gradient = exportCtx.createLinearGradient(
+    x, y + imgHeight,
+    x, y + imgHeight * 2 + img.mirrorDistance * exportScale
+);
+gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+exportCtx.fillStyle = gradient;
+exportCtx.fillRect(
+    x, y + imgHeight,
+    imgWidth, imgHeight + img.mirrorDistance * exportScale
+);
+exportCtx.restore();
+            
                 // Draw reflected image
                 exportCtx.save();
                 exportCtx.globalAlpha = img.mirrorOpacity;
