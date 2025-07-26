@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billederedigeringsværktøj</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="toolbar">
+            <div class="upload-section">
+                <input type="file" id="imageUpload" accept="image/*" multiple>
+                <button id="downloadBtn">Download</button>
+            </div>
+            
+            <div class="controls-section">
+                <div class="control-group">
+                    <label for="bgColor">Baggrundsfarve:</label>
+                    <input type="color" id="bgColor" value="#ffffff">
+                    <label><input type="checkbox" id="transparentBg"> Transparent</label>
+                </div>
+                
+                <div class="control-group">
+                    <label for="exportSize">Eksportstørrelse:</label>
+                    <select id="exportSize">
+                        <option value="1280x1280">1280×1280</option>
+                        <option value="1024x1024">1024×1024</option>
+                        <option value="800x600">800×600</option>
+                        <option value="auto">Auto (preview størrelse)</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label><input type="checkbox" id="snapToGrid"> Snap til grid</label>
+                    <label><input type="checkbox" id="showGuides"> Vis midterlinjer</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="previewArea" class="preview-area">
+            <div class="guide-line vertical"></div>
+            <div class="guide-line horizontal"></div>
+        </div>
+        
+        <div class="image-properties" id="imageProperties" style="display: none;">
+            <h3>Billedegenskaber</h3>
+            <div class="control-group">
+                <label>Skala: <span id="scaleValue">100</span>%</label>
+                <input type="range" id="scaleSlider" min="10" max="300" value="100">
+            </div>
+            <div class="control-group">
+                <label>Lysstyrke: <span id="brightnessValue">100</span>%</label>
+                <input type="range" id="brightnessSlider" min="0" max="200" value="100">
+            </div>
+            <div class="control-group">
+                <button id="flipBtn">Spejlvend</button>
+                <button id="centerBtn">Centrer</button>
+                <button id="deleteBtn">Slet billede</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
