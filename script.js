@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedImage = null;
     let isDragging = false;
     let isResizing = false;
+    let isPanning = false;
     let startX, startY;
     let startLeft, startTop, startWidth, startHeight;
     
@@ -31,41 +32,80 @@ document.addEventListener('DOMContentLoaded', function() {
     let scale = 1;
     let offsetX = 0;
     let offsetY = 0;
-    let isPanning = false;
     let startPanX, startPanY;
 
     // Initialize
-    function init() {
-        resizeCanvas();
-        updateGuidesVisibility();
-        setupEventListeners();
+    setupHighDPICanvas();
+    updateGuidesVisibility();
+    setupEventListeners();
+    requestAnimationFrame(renderLoop);
+
+    function setupHighDPICanvas() {
+        const dpi = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpi;
+        canvas.height = rect.height * dpi;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.scale(dpi, dpi);
     }
 
-    function resizeCanvas() {
-        canvas.width = previewArea.clientWidth;
-        canvas.height = previewArea.clientHeight;
+    function renderLoop() {
         render();
+        requestAnimationFrame(renderLoop);
     }
 
-    function setupEventListeners() {
-        window.addEventListener('resize', resizeCanvas);
-        imageUpload.addEventListener('change', handleImageUpload);
-        downloadBtn.addEventListener('click', exportLayout);
-        showGuides.addEventListener('change', updateGuidesVisibility);
-        snapToGrid.addEventListener('change', render);
-        bgColor.addEventListener('input', render);
-        transparentBg.addEventListener('change', function() {
-            bgColor.disabled = this.checked;
-            render();
+    function render() {
+        // Clear canvas
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw background
+        if (!transparentBg.checked) {
+            ctx.fillStyle = bgColor.value;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Apply transformations
+        ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+
+        // Draw all images
+        images.forEach(img => {
+            ctx.save();
+            ctx.translate(img.x, img.y);
+            
+            // Fixed flip implementation
+            if (img.flipped) {
+                ctx.scale(-1, 1);
+                ctx.translate(-img.width, 0);
+            }
+
+            ctx.globalAlpha = img.opacity;
+            ctx.filter = `brightness(${img.brightness})`;
+            
+            ctx.drawImage(
+                img.element, 
+                0, 0, img.originalWidth, img.originalHeight,
+                0, 0, img.width, img.height
+            );
+
+            // Draw selection
+            if (img === selectedImage) {
+                ctx.strokeStyle = '#0066ff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(0, 0, img.width, img.height);
+                
+                // Draw resize handle
+                ctx.fillStyle = '#0066ff';
+                ctx.fillRect(img.width - 10, img.height - 10, 10, 10);
+            }
+
+            ctx.restore();
         });
 
-        // Canvas interaction
-        canvas.addEventListener('wheel', handleZoom);
-        canvas.addEventListener('mousedown', handleCanvasMouseDown);
-        canvas.addEventListener('mousemove', handleCanvasMouseMove);
-        canvas.addEventListener('mouseup', handleCanvasMouseUp);
-        canvas.addEventListener('mouseleave', handleCanvasMouseUp);
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
+        ctx.restore();
     }
 
     function handleZoom(e) {
@@ -79,20 +119,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const wheelDelta = e.deltaY < 0 ? 1 : -1;
         const newScale = Math.max(0.1, Math.min(5, scale + wheelDelta * zoomIntensity));
 
-        // Calculate new offset to zoom toward mouse position
+        // Calculate new offset for smooth zoom-to-pointer
         offsetX -= (mouseX - offsetX) * (newScale / scale - 1);
         offsetY -= (mouseY - offsetY) * (newScale / scale - 1);
 
         scale = newScale;
-        render();
     }
 
-    function handleCanvasMouseDown(e) {
+    function startPan(e) {
         if (e.button === 1) { // Middle mouse button
             isPanning = true;
             startPanX = e.clientX - offsetX;
             startPanY = e.clientY - offsetY;
-            canvas.classList.add('panning');
+            canvas.style.cursor = 'grabbing';
             return;
         }
 
@@ -100,7 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const mouseX = (e.clientX - rect.left - offsetX) / scale;
         const mouseY = (e.clientY - rect.top - offsetY) / scale;
 
-        // Check if clicked on a resize handle
+        // Check for resize handle
         if (selectedImage) {
             const img = selectedImage;
             const resizeHandleX = img.x + img.width;
@@ -116,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Check if clicked on an image
+        // Check for image selection
         for (let i = images.length - 1; i >= 0; i--) {
             const img = images[i];
             if (mouseX >= img.x && mouseX <= img.x + img.width &&
@@ -135,64 +174,51 @@ document.addEventListener('DOMContentLoaded', function() {
         selectImage(null);
     }
 
-    function handleCanvasMouseMove(e) {
+    function doPan(e) {
+        if (isPanning) {
+            offsetX = e.clientX - startPanX;
+            offsetY = e.clientY - startPanY;
+            return;
+        }
+
         const rect = canvas.getBoundingClientRect();
         const mouseX = (e.clientX - rect.left - offsetX) / scale;
         const mouseY = (e.clientY - rect.top - offsetY) / scale;
 
-        if (isPanning) {
-            offsetX = e.clientX - startPanX;
-            offsetY = e.clientY - startPanY;
-            render();
-            return;
-        }
+        if (isDragging && selectedImage) {
+            selectedImage.x = startLeft + (mouseX - startX);
+            selectedImage.y = startTop + (mouseY - startY);
 
-        if (!selectedImage) return;
-
-        if (isDragging) {
-            const dx = mouseX - startX;
-            const dy = mouseY - startY;
-
-            selectedImage.x = startLeft + dx;
-            selectedImage.y = startTop + dy;
-
-            // Snap to center if enabled
             if (snapToGrid.checked) {
                 const centerX = selectedImage.x + selectedImage.width / 2;
                 const centerY = selectedImage.y + selectedImage.height / 2;
+                const canvasCenterX = canvas.width / scale / 2;
+                const canvasCenterY = canvas.height / scale / 2;
 
-                if (Math.abs(centerX - canvas.width / 2 / scale) < 20) {
-                    selectedImage.x = (canvas.width / 2 / scale) - (selectedImage.width / 2);
+                if (Math.abs(centerX - canvasCenterX) < 20) {
+                    selectedImage.x = canvasCenterX - selectedImage.width / 2;
                 }
-
-                if (Math.abs(centerY - canvas.height / 2 / scale) < 20) {
-                    selectedImage.y = (canvas.height / 2 / scale) - (selectedImage.height / 2);
+                if (Math.abs(centerY - canvasCenterY) < 20) {
+                    selectedImage.y = canvasCenterY - selectedImage.height / 2;
                 }
             }
+        } 
+        else if (isResizing && selectedImage) {
+            selectedImage.width = Math.max(20, startWidth + (mouseX - startX));
+            selectedImage.height = Math.max(20, startHeight + (mouseY - startY));
 
-            render();
-        } else if (isResizing) {
-            const dx = mouseX - startX;
-            const dy = mouseY - startY;
-
-            selectedImage.width = Math.max(20, startWidth + dx);
-            selectedImage.height = Math.max(20, startHeight + dy);
-
-            // Maintain aspect ratio with Shift key
             if (e.shiftKey) {
                 const aspectRatio = startWidth / startHeight;
                 selectedImage.height = selectedImage.width / aspectRatio;
             }
-
-            render();
         }
     }
 
-    function handleCanvasMouseUp() {
+    function endPan() {
         isPanning = false;
         isDragging = false;
         isResizing = false;
-        canvas.classList.remove('panning');
+        canvas.style.cursor = 'grab';
     }
 
     function handleImageUpload(e) {
@@ -232,7 +258,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         images.push(newImage);
         selectImage(newImage);
-        render();
     }
 
     function selectImage(image) {
@@ -247,8 +272,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             imageProperties.style.display = 'none';
         }
-        
-        render();
     }
 
     function updateGuidesVisibility() {
@@ -256,77 +279,6 @@ document.addEventListener('DOMContentLoaded', function() {
         guides.forEach(guide => {
             guide.style.display = showGuides.checked ? 'block' : 'none';
         });
-    }
-
-    function render() {
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw background
-        if (!transparentBg.checked) {
-            ctx.fillStyle = bgColor.value;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        // Apply zoom and pan
-        ctx.translate(offsetX, offsetY);
-        ctx.scale(scale, scale);
-
-        // Draw checkerboard pattern for transparency
-        if (transparentBg.checked) {
-            const patternSize = 20 * (1/scale);
-            ctx.fillStyle = '#eee';
-            for (let y = 0; y < canvas.height / scale; y += patternSize * 2) {
-                for (let x = 0; x < canvas.width / scale; x += patternSize * 2) {
-                    if ((x + y) % (patternSize * 4) === 0) {
-                        ctx.fillRect(x, y, patternSize, patternSize);
-                        ctx.fillRect(x + patternSize, y + patternSize, patternSize, patternSize);
-                    }
-                }
-            }
-        }
-
-        // Draw all images
-        images.forEach(img => {
-            ctx.save();
-            ctx.translate(img.x, img.y);
-            
-            if (img.flipped) {
-                ctx.scale(-1, 1);
-                ctx.translate(-img.width, 0);
-            }
-
-            ctx.globalAlpha = img.opacity;
-            ctx.filter = `brightness(${img.brightness})`;
-            
-            ctx.drawImage(
-                img.element, 
-                0, 0, 
-                img.originalWidth, 
-                img.originalHeight,
-                0, 0,
-                img.width, 
-                img.height
-            );
-
-            // Draw selection outline
-            if (img === selectedImage) {
-                ctx.strokeStyle = '#0066ff';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
-                ctx.strokeRect(0, 0, img.width, img.height);
-                
-                // Draw resize handle
-                ctx.fillStyle = '#0066ff';
-                ctx.fillRect(img.width - 10, img.height - 10, 10, 10);
-            }
-
-            ctx.restore();
-        });
-
-        ctx.restore();
     }
 
     function exportLayout() {
@@ -397,51 +349,63 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 'image/png');
     }
 
-    // Initialize property controls
-    scaleSlider.addEventListener('input', function() {
-        if (selectedImage) {
-            selectedImage.scale = this.value / 100;
-            selectedImage.width = selectedImage.originalWidth * selectedImage.scale;
-            selectedImage.height = selectedImage.originalHeight * selectedImage.scale;
-            scaleValue.textContent = this.value;
+    function setupEventListeners() {
+        imageUpload.addEventListener('change', handleImageUpload);
+        downloadBtn.addEventListener('click', exportLayout);
+        showGuides.addEventListener('change', updateGuidesVisibility);
+        snapToGrid.addEventListener('change', render);
+        bgColor.addEventListener('input', render);
+        transparentBg.addEventListener('change', function() {
+            bgColor.disabled = this.checked;
             render();
-        }
-    });
+        });
 
-    brightnessSlider.addEventListener('input', function() {
-        if (selectedImage) {
-            selectedImage.brightness = this.value / 100;
-            brightnessValue.textContent = this.value;
-            render();
-        }
-    });
+        // Canvas interaction
+        canvas.addEventListener('wheel', handleZoom);
+        canvas.addEventListener('mousedown', startPan);
+        document.addEventListener('mousemove', doPan);
+        document.addEventListener('mouseup', endPan);
+        document.addEventListener('mouseleave', endPan);
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    flipBtn.addEventListener('click', function() {
-        if (selectedImage) {
-            selectedImage.flipped = !selectedImage.flipped;
-            render();
-        }
-    });
-
-    centerBtn.addEventListener('click', function() {
-        if (selectedImage) {
-            selectedImage.x = (canvas.width / 2 / scale) - (selectedImage.width / 2) - (offsetX / scale);
-            selectedImage.y = (canvas.height / 2 / scale) - (selectedImage.height / 2) - (offsetY / scale);
-            render();
-        }
-    });
-
-    deleteBtn.addEventListener('click', function() {
-        if (selectedImage) {
-            const index = images.indexOf(selectedImage);
-            if (index !== -1) {
-                images.splice(index, 1);
-                selectImage(null);
-                render();
+        // Property controls
+        scaleSlider.addEventListener('input', function() {
+            if (selectedImage) {
+                selectedImage.scale = this.value / 100;
+                selectedImage.width = selectedImage.originalWidth * selectedImage.scale;
+                selectedImage.height = selectedImage.originalHeight * selectedImage.scale;
+                scaleValue.textContent = this.value;
             }
-        }
-    });
+        });
 
-    // Start the app
-    init();
+        brightnessSlider.addEventListener('input', function() {
+            if (selectedImage) {
+                selectedImage.brightness = this.value / 100;
+                brightnessValue.textContent = this.value;
+            }
+        });
+
+        flipBtn.addEventListener('click', function() {
+            if (selectedImage) {
+                selectedImage.flipped = !selectedImage.flipped;
+            }
+        });
+
+        centerBtn.addEventListener('click', function() {
+            if (selectedImage) {
+                selectedImage.x = (canvas.width / 2 / scale) - (selectedImage.width / 2) - (offsetX / scale);
+                selectedImage.y = (canvas.height / 2 / scale) - (selectedImage.height / 2) - (offsetY / scale);
+            }
+        });
+
+        deleteBtn.addEventListener('click', function() {
+            if (selectedImage) {
+                const index = images.indexOf(selectedImage);
+                if (index !== -1) {
+                    images.splice(index, 1);
+                    selectImage(null);
+                }
+            }
+        });
+    }
 });
