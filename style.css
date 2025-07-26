@@ -95,6 +95,19 @@ body {
     transform: translateY(-50%);
 }
 
+.guide-center {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255, 0, 0, 0.5);
+    border-radius: 50%;
+    z-index: 11;
+    pointer-events: none;
+}
+
 .image-properties {
     padding: 15px;
     background-color: #f0f0f0;
