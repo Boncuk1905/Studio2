@@ -15,8 +15,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const scaleValue = document.getElementById('scaleValue');
     const mirrorOpacitySlider = document.getElementById('mirrorOpacitySlider');
     const mirrorOpacityValue = document.getElementById('mirrorOpacityValue');
+    const mirrorDistanceSlider = document.getElementById('mirrorDistanceSlider');
+    const mirrorDistanceValue = document.getElementById('mirrorDistanceValue');
+    const imageNumberInput = document.getElementById('imageNumberInput');
+    const imageNumberValue = document.getElementById('imageNumberValue');
     const flipBtn = document.getElementById('flipBtn');
     const centerBtn = document.getElementById('centerBtn');
+    const centerExportBtn = document.getElementById('centerExportBtn');
     const deleteBtn = document.getElementById('deleteBtn');
 
     // App state
@@ -75,8 +80,11 @@ document.addEventListener('DOMContentLoaded', function() {
             drawGrid();
         }
 
+        // Sort images by their number
+        const sortedImages = [...images].sort((a, b) => a.number - b.number);
+
         // Draw all images with reflections
-        images.forEach(img => {
+        sortedImages.forEach(img => {
             ctx.save();
             ctx.translate(img.x, img.y);
             
@@ -101,10 +109,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.drawImage(
                     img.element,
                     0, 0, img.originalWidth, img.originalHeight,
-                    0, -img.height * 2, img.width, img.height
+                    0, -img.height * 2 - img.mirrorDistance, img.width, img.height
                 );
                 ctx.restore();
             }
+
+            // Draw image number
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(img.number.toString(), 10, 20);
 
             // Draw selection
             if (img === selectedImage) {
@@ -246,13 +259,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } 
         else if (isResizing && selectedImage) {
-            selectedImage.width = Math.max(20, startWidth + (mouseX - startX));
-            selectedImage.height = Math.max(20, startHeight + (mouseY - startY));
-
+            const newWidth = Math.max(20, startWidth + (mouseX - startX));
+            const newHeight = Math.max(20, startHeight + (mouseY - startY));
+            
             if (e.shiftKey) {
-                const aspectRatio = startWidth / startHeight;
-                selectedImage.height = selectedImage.width / aspectRatio;
+                // Maintain aspect ratio
+                const aspectRatio = selectedImage.originalWidth / selectedImage.originalHeight;
+                if (newWidth / newHeight > aspectRatio) {
+                    selectedImage.width = newHeight * aspectRatio;
+                    selectedImage.height = newHeight;
+                } else {
+                    selectedImage.width = newWidth;
+                    selectedImage.height = newWidth / aspectRatio;
+                }
+            } else {
+                selectedImage.width = newWidth;
+                selectedImage.height = newHeight;
             }
+            
+            selectedImage.scale = selectedImage.width / selectedImage.originalWidth;
         }
     }
 
@@ -303,8 +328,10 @@ document.addEventListener('DOMContentLoaded', function() {
             scale: 1,
             opacity: 1,
             mirrorOpacity: 0.3,
+            mirrorDistance: 20,
             flipped: false,
-            filename: filename
+            filename: filename,
+            number: images.length + 1
         };
 
         images.push(newImage);
@@ -320,6 +347,10 @@ document.addEventListener('DOMContentLoaded', function() {
             scaleValue.textContent = Math.round(image.scale * 100);
             mirrorOpacitySlider.value = image.mirrorOpacity * 100;
             mirrorOpacityValue.textContent = Math.round(image.mirrorOpacity * 100);
+            mirrorDistanceSlider.value = image.mirrorDistance;
+            mirrorDistanceValue.textContent = image.mirrorDistance;
+            imageNumberInput.value = image.number;
+            imageNumberValue.textContent = image.number;
         } else {
             imageProperties.style.display = 'none';
         }
@@ -350,12 +381,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedImage.y = (canvas.height / 2 / scale) - (selectedImage.height / 2) - (offsetY / scale);
             }
         });
+        centerExportBtn.addEventListener('click', function() {
+            if (selectedImage) {
+                selectedImage.number = 1; // Sæt som primært billede
+                updateImageNumbers();
+            }
+        });
         deleteBtn.addEventListener('click', function() {
             if (selectedImage) {
                 const index = images.indexOf(selectedImage);
                 if (index !== -1) {
                     images.splice(index, 1);
-                    selectImage(null);
+                    updateImageNumbers();
+                    selectImage(images.length > 0 ? images[0] : null);
                 }
             }
         });
@@ -370,9 +408,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         scaleSlider.addEventListener('input', function() {
             if (selectedImage) {
-                selectedImage.scale = this.value / 100;
-                selectedImage.width = selectedImage.originalWidth * selectedImage.scale;
-                selectedImage.height = selectedImage.originalHeight * selectedImage.scale;
+                const scaleValue = this.value / 100;
+                selectedImage.width = selectedImage.originalWidth * scaleValue;
+                selectedImage.height = selectedImage.originalHeight * scaleValue;
+                selectedImage.scale = scaleValue;
                 scaleValue.textContent = this.value;
             }
         });
@@ -380,6 +419,18 @@ document.addEventListener('DOMContentLoaded', function() {
             if (selectedImage) {
                 selectedImage.mirrorOpacity = this.value / 100;
                 mirrorOpacityValue.textContent = this.value;
+            }
+        });
+        mirrorDistanceSlider.addEventListener('input', function() {
+            if (selectedImage) {
+                selectedImage.mirrorDistance = parseInt(this.value);
+                mirrorDistanceValue.textContent = this.value;
+            }
+        });
+        imageNumberInput.addEventListener('change', function() {
+            if (selectedImage) {
+                selectedImage.number = parseInt(this.value);
+                updateImageNumbers();
             }
         });
 
@@ -390,6 +441,21 @@ document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('mouseup', endPan);
         document.addEventListener('mouseleave', endPan);
         canvas.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    function updateImageNumbers() {
+        // Sorter billeder efter deres nummer
+        images.sort((a, b) => a.number - b.number);
+        
+        // Opdater numre for at undgå dubletter
+        images.forEach((img, index) => {
+            img.number = index + 1;
+        });
+        
+        // Opdater UI hvis det valgte billede stadig findes
+        if (selectedImage && !images.includes(selectedImage)) {
+            selectImage(images.length > 0 ? images[0] : null);
+        }
     }
 
     function exportLayout() {
@@ -426,11 +492,20 @@ document.addEventListener('DOMContentLoaded', function() {
             height / contentHeight
         );
         
+        // Find the primary image (number 1)
+        const primaryImage = images.find(img => img.number === 1);
+        let centerX = 0, centerY = 0;
+        
+        if (primaryImage) {
+            centerX = (primaryImage.x + offsetX/scale + primaryImage.width/2) * exportScale - width/2;
+            centerY = (primaryImage.y + offsetY/scale + primaryImage.height/2) * exportScale - height/2;
+        }
+        
         // Draw all images with reflections
-        images.forEach(img => {
-            // Calculate position
-            const x = (img.x + offsetX/scale) * exportScale;
-            const y = (img.y + offsetY/scale) * exportScale;
+        images.sort((a, b) => a.number - b.number).forEach(img => {
+            // Calculate position relative to export canvas
+            let x = (img.x + offsetX/scale) * exportScale - centerX;
+            let y = (img.y + offsetY/scale) * exportScale - centerY;
             const imgWidth = img.width * exportScale;
             const imgHeight = img.height * exportScale;
             
@@ -440,10 +515,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 exportCtx.globalAlpha = img.mirrorOpacity;
                 
                 if (img.flipped) {
-                    exportCtx.translate(x + imgWidth, y + imgHeight);
+                    exportCtx.translate(x + imgWidth, y + imgHeight + img.mirrorDistance);
                     exportCtx.scale(-1, -1);
                 } else {
-                    exportCtx.translate(x, y + imgHeight);
+                    exportCtx.translate(x, y + imgHeight + img.mirrorDistance);
                     exportCtx.scale(1, -1);
                 }
                 
