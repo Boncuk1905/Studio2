@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         centerExportBtn.addEventListener('click', function() {
             if (selectedImage) {
-                selectedImage.number = 1; // Sæt som primært billede
+                selectedImage.number = 1;
                 updateImageNumbers();
             }
         });
@@ -444,15 +444,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateImageNumbers() {
-        // Sorter billeder efter deres nummer
         images.sort((a, b) => a.number - b.number);
         
-        // Opdater numre for at undgå dubletter
         images.forEach((img, index) => {
             img.number = index + 1;
         });
         
-        // Opdater UI hvis det valgte billede stadig findes
         if (selectedImage && !images.includes(selectedImage)) {
             selectImage(images.length > 0 ? images[0] : null);
         }
@@ -472,9 +469,9 @@ document.addEventListener('DOMContentLoaded', function() {
             height = h;
         }
         
-        // Create high-quality export canvas
+        // Create export canvas
         const exportCanvas = document.createElement('canvas');
-        const exportDpi = 2; // For høj kvalitet
+        const exportDpi = 2; // For high quality export
         exportCanvas.width = width * exportDpi;
         exportCanvas.height = height * exportDpi;
         const exportCtx = exportCanvas.getContext('2d');
@@ -486,20 +483,21 @@ document.addEventListener('DOMContentLoaded', function() {
             exportCtx.fillRect(0, 0, width, height);
         }
         
-        // Calculate content bounds
+        // Calculate content bounds including reflections
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         images.forEach(img => {
             minX = Math.min(minX, img.x);
             minY = Math.min(minY, img.y);
             maxX = Math.max(maxX, img.x + img.width);
-            maxY = Math.max(maxY, img.y + img.height + (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
+            maxY = Math.max(maxY, img.y + img.height + 
+                  (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
         });
         
         const contentWidth = maxX - minX;
         const contentHeight = maxY - minY;
-        const scaleX = width / contentWidth;
-        const scaleY = height / contentHeight;
-        const exportScale = Math.min(scaleX, scaleY) * 0.95; // 5% padding
+        const scaleX = width / (contentWidth + 40); // Add padding
+        const scaleY = height / (contentHeight + 40);
+        const exportScale = Math.min(scaleX, scaleY);
         
         // Center point
         const centerX = (minX + maxX) / 2;
@@ -513,8 +511,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const imgWidth = img.width * exportScale;
             const imgHeight = img.height * exportScale;
             
-            // Draw reflection first (under main image)
+            // Draw reflection FIRST (under main image)
             if (img.mirrorOpacity > 0) {
+                exportCtx.save();
+                
+                // Create gradient for fade effect
+                const gradient = exportCtx.createLinearGradient(
+                    x, y + imgHeight + img.mirrorDistance * exportScale,
+                    x, y + imgHeight * 2 + img.mirrorDistance * exportScale
+                );
+                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+                gradient.addColorStop(1, "rgba(255,255,255,0)");
+                
+                // Apply gradient mask
+                exportCtx.save();
+                exportCtx.globalCompositeOperation = 'destination-over';
+                exportCtx.fillStyle = gradient;
+                exportCtx.fillRect(
+                    x, y + imgHeight + img.mirrorDistance * exportScale,
+                    imgWidth, imgHeight
+                );
+                exportCtx.restore();
+                
+                // Draw reflected image
                 exportCtx.save();
                 exportCtx.globalAlpha = img.mirrorOpacity;
                 
@@ -558,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `design-${new Date().getTime()}.png`;
+            a.download = `mirror-design-${new Date().getTime()}.png`;
             document.body.appendChild(a);
             a.click();
             setTimeout(() => {
