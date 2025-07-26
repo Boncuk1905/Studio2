@@ -1,4 +1,3 @@
-// script.js - Komplet billedredigeringsværktøj med spejleffekt
 document.addEventListener('DOMContentLoaded', function() {
     // DOM elements
     const previewArea = document.getElementById('previewArea');
@@ -457,75 +456,110 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function exportLayout() {
-    // Determine export dimensions
-    let width, height;
-    const size = exportSize.value;
+        // Determine export dimensions
+        let width, height;
+        const size = exportSize.value;
+        
+        if (size === 'auto') {
+            width = Math.round(canvas.width / window.devicePixelRatio);
+            height = Math.round(canvas.height / window.devicePixelRatio);
+        } else {
+            const [w, h] = size.split('x').map(Number);
+            width = w;
+            height = h;
+        }
+        
+        // Create high quality export canvas
+        const exportCanvas = document.createElement('canvas');
+        const dpi = 2; // High quality export
+        exportCanvas.width = width * dpi;
+        exportCanvas.height = height * dpi;
+        const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.scale(dpi, dpi);
+        
+        // Draw background
+        if (!transparentBg.checked) {
+            exportCtx.fillStyle = bgColor.value;
+            exportCtx.fillRect(0, 0, width, height);
+        }
+        
+        // Calculate content bounds including reflections
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        images.forEach(img => {
+            minX = Math.min(minX, img.x);
+            minY = Math.min(minY, img.y);
+            maxX = Math.max(maxX, img.x + img.width);
+            maxY = Math.max(maxY, img.y + img.height + 
+                  (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
+        });
+        
+        // Add 10% padding
+        const padding = Math.max(width, height) * 0.1;
+        const contentWidth = maxX - minX + padding * 2;
+        const contentHeight = maxY - minY + padding * 2;
+        
+        // Calculate scale to fit
+        const scaleX = width / contentWidth;
+        const scaleY = height / contentHeight;
+        const exportScale = Math.min(scaleX, scaleY);
+        
+        // Center point
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        
+        // Draw all images with reflections
+        images.sort((a, b) => a.number - b.number).forEach(img => {
+            const x = (img.x - centerX) * exportScale + width / 2;
+            const y = (img.y - centerY) * exportScale + height / 2;
+            const imgWidth = img.width * exportScale;
+            const imgHeight = img.height * exportScale;
 
-    if (size === 'auto') {
-        width = Math.round(canvas.width / window.devicePixelRatio);
-        height = Math.round(canvas.height / window.devicePixelRatio);
-    } else {
-        const [w, h] = size.split('x').map(Number);
-        width = w;
-        height = h;
-    }
+            // === Draw reflection ===
+            if (img.mirrorOpacity > 0) {
+                exportCtx.save();
+                exportCtx.globalAlpha = img.mirrorOpacity;
 
-    // Create high quality export canvas
-    const exportCanvas = document.createElement('canvas');
-    const dpi = 2; // High quality export
-    exportCanvas.width = width * dpi;
-    exportCanvas.height = height * dpi;
-    const exportCtx = exportCanvas.getContext('2d');
-    exportCtx.scale(dpi, dpi);
+                if (img.flipped) {
+                    exportCtx.translate(x + imgWidth, y + imgHeight * 2 + img.mirrorDistance * exportScale);
+                    exportCtx.scale(-1, -1);
+                } else {
+                    exportCtx.translate(x, y + imgHeight * 2 + img.mirrorDistance * exportScale);
+                    exportCtx.scale(1, -1);
+                }
 
-    // Draw background
-    if (!transparentBg.checked) {
-        exportCtx.fillStyle = bgColor.value;
-        exportCtx.fillRect(0, 0, width, height);
-    }
+                exportCtx.drawImage(
+                    img.element,
+                    0, 0, img.originalWidth, img.originalHeight,
+                    0, 0, imgWidth, imgHeight
+                );
+                exportCtx.restore();
 
-    // Calculate content bounds including reflections
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    images.forEach(img => {
-        minX = Math.min(minX, img.x);
-        minY = Math.min(minY, img.y);
-        maxX = Math.max(maxX, img.x + img.width);
-        maxY = Math.max(maxY, img.y + img.height + 
-              (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
-    });
+                // === Draw gradient mask over reflection ===
+                exportCtx.save();
+                exportCtx.globalCompositeOperation = 'destination-in';
+                const gradient = exportCtx.createLinearGradient(
+                    x, y + imgHeight,
+                    x, y + imgHeight * 2 + img.mirrorDistance * exportScale
+                );
+                gradient.addColorStop(0, 'rgba(0,0,0,1)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                exportCtx.fillStyle = gradient;
+                exportCtx.fillRect(
+                    x, y + imgHeight,
+                    imgWidth, imgHeight + img.mirrorDistance * exportScale
+                );
+                exportCtx.restore();
+            }
 
-    // Add 10% padding
-    const padding = Math.max(width, height) * 0.1;
-    const contentWidth = maxX - minX + padding * 2;
-    const contentHeight = maxY - minY + padding * 2;
-
-    // Calculate scale to fit
-    const scaleX = width / contentWidth;
-    const scaleY = height / contentHeight;
-    const exportScale = Math.min(scaleX, scaleY);
-
-    // Center point
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    // Draw all images with reflections
-    images.sort((a, b) => a.number - b.number).forEach(img => {
-        const x = (img.x - centerX) * exportScale + width / 2;
-        const y = (img.y - centerY) * exportScale + height / 2;
-        const imgWidth = img.width * exportScale;
-        const imgHeight = img.height * exportScale;
-
-        // === Draw reflection ===
-        if (img.mirrorOpacity > 0) {
+            // === Draw main image ===
             exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
+            exportCtx.globalAlpha = img.opacity;
 
             if (img.flipped) {
-                exportCtx.translate(x + imgWidth, y + imgHeight * 2 + img.mirrorDistance * exportScale);
-                exportCtx.scale(-1, -1);
+                exportCtx.translate(x + imgWidth, y);
+                exportCtx.scale(-1, 1);
             } else {
-                exportCtx.translate(x, y + imgHeight * 2 + img.mirrorDistance * exportScale);
-                exportCtx.scale(1, -1);
+                exportCtx.translate(x, y);
             }
 
             exportCtx.drawImage(
@@ -534,54 +568,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 0, 0, imgWidth, imgHeight
             );
             exportCtx.restore();
+        });
 
-            // === Draw gradient mask over reflection ===
-            exportCtx.save();
-            exportCtx.globalCompositeOperation = 'destination-in';
-            const gradient = exportCtx.createLinearGradient(
-                x, y + imgHeight,
-                x, y + imgHeight * 2 + img.mirrorDistance * exportScale
-            );
-            gradient.addColorStop(0, 'rgba(0,0,0,1)');
-            gradient.addColorStop(1, 'rgba(0,0,0,0)');
-            exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(
-                x, y + imgHeight,
-                imgWidth, imgHeight + img.mirrorDistance * exportScale
-            );
-            exportCtx.restore();
-        }
-
-        // === Draw main image ===
-        exportCtx.save();
-        exportCtx.globalAlpha = img.opacity;
-
-        if (img.flipped) {
-            exportCtx.translate(x + imgWidth, y);
-            exportCtx.scale(-1, 1);
-        } else {
-            exportCtx.translate(x, y);
-        }
-
-        exportCtx.drawImage(
-            img.element,
-            0, 0, img.originalWidth, img.originalHeight,
-            0, 0, imgWidth, imgHeight
-        );
-        exportCtx.restore();
-    });
-
-    // Download the image
-    exportCanvas.toBlob(function(blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mirror-export-${new Date().getTime()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 100);
-    }, 'image/png', 1.0);
-}
+        // Download the image
+        exportCanvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mirror-export-${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }, 'image/png', 1.0);
+    }
+});
