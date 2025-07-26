@@ -1,13 +1,5 @@
-/* 
- * KOMPLET BILLEDEREDIGERINGSVÆRKTØJ (STABIL VERSION)
- * Version: 2.3 (Med alle rettelser og fungerende zoom)
- * Linjeantal: 750+ (med dokumentation)
- */
-
 document.addEventListener('DOMContentLoaded', function() {
-    // ======================
-    // SECTION 1: DOM ELEMENTS
-    // ======================
+    // DOM elements
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d');
     const imageUpload = document.getElementById('imageUpload');
@@ -30,13 +22,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const centerBtn = document.getElementById('centerBtn');
     const centerExportBtn = document.getElementById('centerExportBtn');
     const deleteBtn = document.getElementById('deleteBtn');
-    const zoomInBtn = document.getElementById('zoomInBtn');
-    const zoomOutBtn = document.getElementById('zoomOutBtn');
-    const resetZoomBtn = document.getElementById('resetZoomBtn');
 
-    // ==================
-    // SECTION 2: APP STATE
-    // ==================
+    // App state
     const state = {
         images: [],
         selectedImage: null,
@@ -64,69 +51,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // =====================
-    // SECTION 3: INITIALIZATION
-    // =====================
-  function initialize() {
-    if (!ctx) {
-        console.error('Kunne ikke få canvas context');
-        return;
+    // Initialize the app
+    function initialize() {
+        resizeCanvasToContainer();
+        setupEventListeners();
+        render();
     }
-
-    resizeCanvasToContainer();
-    setupEventListeners();
-    
-    // Initial render uden transformations
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    render();
-    requestAnimationFrame(renderLoop);
-}
 
     function resizeCanvasToContainer() {
         const container = canvas.parentElement;
-        const dpi = window.devicePixelRatio || 1;
-        const rect = container.getBoundingClientRect();
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+    }
+
+    function render() {
+        clearCanvas();
+        drawBackground();
         
-        canvas.width = rect.width * dpi;
-        canvas.height = rect.height * dpi;
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${rect.height}px`;
-        
-        ctx.scale(dpi, dpi);
-        console.log('Canvas initialiseret:', canvas.width, canvas.height);
-    }
+        if (state.grid.visible && snapToGrid.checked) {
+            drawGrid();
+        }
 
-    // =====================
-    // SECTION 4: CORE RENDERING
-    // =====================
-    function renderLoop() {
-        render();
-        requestAnimationFrame(renderLoop);
+        drawAllImages();
+        requestAnimationFrame(render);
     }
-
-  function render() {
-    console.log("Render-loop kører"); // Vis at rendering sker
-    
-    clearCanvas();
-    drawBackground();
-    
-    ctx.save();
-    applyCanvasTransformations();
-    
-    if (state.grid.visible && snapToGrid.checked) {
-        drawGrid();
-    }
-
-    console.log("Antal billeder at tegne:", state.images.length); // Debug antal billeder
-    drawAllImages();
-    ctx.restore();
-}
 
     function clearCanvas() {
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
     }
 
     function drawBackground() {
@@ -136,19 +87,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function applyCanvasTransformations() {
-        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
-    }
-
     function drawGrid() {
         const gridSize = state.grid.size;
-        const width = canvas.width / state.scale;
-        const height = canvas.height / state.scale;
+        const width = canvas.width;
+        const height = canvas.height;
         
-        ctx.save();
         ctx.strokeStyle = state.grid.color;
         ctx.lineWidth = 1;
-        ctx.setLineDash([2, 2]);
         
         for (let x = 0; x <= width; x += gridSize) {
             ctx.beginPath();
@@ -163,19 +108,11 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.lineTo(width, y);
             ctx.stroke();
         }
-        
-        ctx.restore();
     }
 
     function drawAllImages() {
-        const sortedImages = [...state.images].sort((a, b) => b.number - a.number);
-        
-        sortedImages.forEach(img => {
+        state.images.forEach(img => {
             drawSingleImage(img);
-            
-            if (img.mirrorOpacity > 0) {
-                drawImageReflection(img);
-            }
             
             if (img === state.selectedImage) {
                 drawImageSelection(img);
@@ -183,53 +120,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
- function drawSingleImage(img) {
-    console.log("Prøver at tegne billede:", img.filename, "X:", img.x, "Y:", img.y); // Debug position
-
-    ctx.save();
-    ctx.globalAlpha = img.opacity;
-    
-    if (img.flipped) {
-        ctx.translate(img.x + img.width, img.y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(img.element, 0, 0, img.width, img.height);
-    } else {
-        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
-    }
-    
-    // Tegn en rød ramme for at se om billedet er der (debug)
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(img.x, img.y, img.width, img.height);
-    
-    ctx.restore();
-}
-
-    function drawImageReflection(img) {
+    function drawSingleImage(img) {
         ctx.save();
-        ctx.globalAlpha = img.mirrorOpacity * 0.7;
+        ctx.globalAlpha = img.opacity;
         
-        const gradient = ctx.createLinearGradient(
-            img.x, img.y + img.height,
-            img.x, img.y + img.height + img.mirrorDistance
-        );
-        gradient.addColorStop(0, 'rgba(255,255,255,0.8)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        
-        ctx.beginPath();
-        ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        ctx.clip();
-        
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(
-            img.element,
-            img.x, img.y + img.height + img.mirrorDistance,
-            img.width, -img.height
-        );
+        if (img.flipped) {
+            ctx.translate(img.x + img.width, img.y);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img.element, 0, 0, img.width, img.height);
+        } else {
+            ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
+        }
         
         ctx.restore();
     }
@@ -251,16 +152,13 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.restore();
     }
 
-    // =====================
-    // SECTION 5: IMAGE HANDLING
-    // =====================
     function handleImageUpload(e) {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-console.log('Billede indlæst:', file.name, img.width, img.height);
+
         Array.from(files).forEach(file => {
             if (!file.type.match('image.*')) {
-                console.log('Ikke et billede:', file.name);
+                console.log('Ignorerer ikke-billede:', file.name);
                 return;
             }
 
@@ -270,55 +168,42 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
                 img.onload = function() {
                     addImageToCanvas(img, file.name);
                 };
-                img.onerror = function() {
-                    console.error('Fejl ved indlæsning af billede:', file.name);
-                };
                 img.src = event.target.result;
             };
-            reader.onerror = () => console.error('Fil læsefejl');
             reader.readAsDataURL(file);
         });
     }
 
     function addImageToCanvas(img, filename) {
-        const rect = canvas.getBoundingClientRect();
-        const centerX = (rect.width / 2 / state.scale) - (img.width / 2) - (state.offsetX / state.scale);
-        const centerY = (rect.height / 2 / state.scale) - (img.height / 2) - (state.offsetY / state.scale);
-
         const newImage = {
             element: img,
             originalWidth: img.width,
             originalHeight: img.height,
             width: img.width,
             height: img.height,
-            x: centerX,
-            y: centerY,
+            x: (canvas.width - img.width) / 2,
+            y: (canvas.height - img.height) / 2,
             scale: 1,
             opacity: 1,
-            mirrorOpacity: 0.5,
+            mirrorOpacity: 0.3,
             mirrorDistance: 20,
             flipped: false,
             filename: filename,
             number: state.images.length + 1
         };
 
-          state.images.push(newImage);
-    console.log("Billede tilføjet til state:", newImage); // Vis det tilføjede billedobjekt
-    selectImage(newImage);
-}
+        state.images.push(newImage);
+        selectImage(newImage);
+    }
 
-    // =====================
-    // SECTION 6: INTERACTION
-    // =====================
     function handleMouseDown(e) {
         e.preventDefault();
         const pos = getCanvasPosition(e);
 
         if (e.button === 1) { // Middle mouse button
             state.isPanning = true;
-            state.startPanX = e.clientX - state.offsetX;
-            state.startPanY = e.clientY - state.offsetY;
-            canvas.style.cursor = 'grabbing';
+            state.startPanX = e.clientX;
+            state.startPanY = e.clientY;
             return;
         }
 
@@ -351,8 +236,12 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
         const pos = getCanvasPosition(e);
 
         if (state.isPanning) {
-            state.offsetX = e.clientX - state.startPanX;
-            state.offsetY = e.clientY - state.startPanY;
+            const dx = e.clientX - state.startPanX;
+            const dy = e.clientY - state.startPanY;
+            state.offsetX += dx;
+            state.offsetY += dy;
+            state.startPanX = e.clientX;
+            state.startPanY = e.clientY;
             return;
         }
 
@@ -360,13 +249,8 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
             const dx = pos.x - state.startX;
             const dy = pos.y - state.startY;
             
-            if (snapToGrid.checked) {
-                state.selectedImage.x = snapToGridValue(state.startLeft + dx);
-                state.selectedImage.y = snapToGridValue(state.startTop + dy);
-            } else {
-                state.selectedImage.x = state.startLeft + dx;
-                state.selectedImage.y = state.startTop + dy;
-            }
+            state.selectedImage.x = state.startLeft + dx;
+            state.selectedImage.y = state.startTop + dy;
             return;
         }
 
@@ -378,61 +262,21 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
             state.selectedImage.height = state.selectedImage.width / aspectRatio;
             return;
         }
-
-        state.hoveredImage = null;
-        for (let i = state.images.length - 1; i >= 0; i--) {
-            if (isOverImage(pos, state.images[i])) {
-                state.hoveredImage = state.images[i];
-                canvas.style.cursor = 'move';
-                return;
-            }
-        }
-        canvas.style.cursor = 'default';
     }
 
     function handleMouseUp() {
         state.isDragging = false;
         state.isResizing = false;
         state.isPanning = false;
-        canvas.style.cursor = 'default';
     }
 
-    function handleZoom(e) {
-        e.preventDefault();
-        
-        const zoomIntensity = 0.1;
-        const wheelDelta = e.deltaY < 0 ? 1 : -1;
-        const zoomFactor = 1 + (wheelDelta * zoomIntensity);
-        
-        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
-        const mouseY = e.clientY - canvas.getBoundingClientRect().top;
-        
-        applyZoom(zoomFactor, mouseX, mouseY);
+    function getCanvasPosition(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left - state.offsetX) / state.scale,
+            y: (e.clientY - rect.top - state.offsetY) / state.scale
+        };
     }
-
-    function applyZoom(zoomFactor, focusX = canvas.width/2, focusY = canvas.height/2) {
-        const newScale = state.scale * zoomFactor;
-        if (newScale < 0.1 || newScale > 10) return;
-        
-        state.offsetX = focusX - (focusX - state.offsetX) * zoomFactor;
-        state.offsetY = focusY - (focusY - state.offsetY) * zoomFactor;
-        
-        state.scale = newScale;
-        console.log('Zoom opdateret:', state.scale.toFixed(2));
-    }
-
-    // =====================
-    // SECTION 7: UTILITIES
-    // =====================
-function getCanvasPosition(e) {
-    const rect = canvas.getBoundingClientRect();
-    const pos = {
-        x: (e.clientX - rect.left - state.offsetX) / state.scale,
-        y: (e.clientY - rect.top - state.offsetY) / state.scale
-    };
-    console.log("Museposition (canvas space):", pos.x, pos.y); // Debug museposition
-    return pos;
-}
 
     function isOverImage(pos, img) {
         return pos.x >= img.x && pos.x <= img.x + img.width &&
@@ -447,15 +291,6 @@ function getCanvasPosition(e) {
                pos.y <= img.y + img.height;
     }
 
-    function snapToGridValue(value) {
-        if (!snapToGrid.checked) return value;
-        const gridSize = state.grid.size;
-        return Math.round(value / gridSize) * gridSize;
-    }
-
-    // =====================
-    // SECTION 8: UI FUNCTIONS
-    // =====================
     function selectImage(image) {
         state.selectedImage = image;
         
@@ -478,56 +313,6 @@ function getCanvasPosition(e) {
         imageNumberValue.textContent = img.number;
     }
 
-    // =====================
-    // SECTION 9: EXPORT
-    // =====================
-    function exportLayout() {
-        const exportCanvas = document.createElement('canvas');
-        const exportSizeValue = parseInt(exportSize.value);
-        exportCanvas.width = exportSizeValue;
-        exportCanvas.height = exportSizeValue;
-        const exportCtx = exportCanvas.getContext('2d');
-        
-        // Draw background
-        if (!transparentBg.checked) {
-            exportCtx.fillStyle = bgColor.value;
-            exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        }
-        
-        // Calculate scale factor
-        const scaleFactor = exportSizeValue / Math.max(canvas.width, canvas.height);
-        
-        // Draw all images
-        state.images.forEach(img => {
-            exportCtx.save();
-            exportCtx.globalAlpha = img.opacity;
-            
-            const x = (img.x * scaleFactor) + (exportSizeValue/2 - (canvas.width/2 * scaleFactor));
-            const y = (img.y * scaleFactor) + (exportSizeValue/2 - (canvas.height/2 * scaleFactor));
-            const width = img.width * scaleFactor;
-            const height = img.height * scaleFactor;
-            
-            if (img.flipped) {
-                exportCtx.translate(x + width, y);
-                exportCtx.scale(-1, 1);
-                exportCtx.drawImage(img.element, 0, 0, width, height);
-            } else {
-                exportCtx.drawImage(img.element, x, y, width, height);
-            }
-            
-            exportCtx.restore();
-        });
-        
-        // Trigger download
-        const link = document.createElement('a');
-        link.download = `design-export-${new Date().getTime()}.png`;
-        link.href = exportCanvas.toDataURL('image/png');
-        link.click();
-    }
-
-    // =====================
-    // SECTION 10: EVENT SETUP
-    // =====================
     function setupEventListeners() {
         // File handling
         imageUpload.addEventListener('change', handleImageUpload);
@@ -541,9 +326,8 @@ function getCanvasPosition(e) {
         });
         centerBtn.addEventListener('click', () => {
             if (state.selectedImage) {
-                const rect = canvas.getBoundingClientRect();
-                state.selectedImage.x = (rect.width / 2 / state.scale) - (state.selectedImage.width / 2);
-                state.selectedImage.y = (rect.height / 2 / state.scale) - (state.selectedImage.height / 2);
+                state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
+                state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
             }
         });
         deleteBtn.addEventListener('click', () => {
@@ -553,28 +337,58 @@ function getCanvasPosition(e) {
             }
         });
         
-        // Zoom controls
-        zoomInBtn.addEventListener('click', () => applyZoom(1.1));
-        zoomOutBtn.addEventListener('click', () => applyZoom(0.9));
-        resetZoomBtn.addEventListener('click', () => {
-            state.scale = 1;
-            state.offsetX = 0;
-            state.offsetY = 0;
-        });
-        
         // Canvas interaction
         canvas.addEventListener('mousedown', handleMouseDown);
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('wheel', handleZoom, { passive: false });
         
         // Window resize
         window.addEventListener('resize', () => {
             resizeCanvasToContainer();
-            render();
         });
     }
 
-    // Initialize the app
+    function exportLayout() {
+        const exportCanvas = document.createElement('canvas');
+        const size = exportSize.value === 'auto' ? 
+            Math.max(canvas.width, canvas.height) : 
+            parseInt(exportSize.value.split('x')[0]);
+        
+        exportCanvas.width = size;
+        exportCanvas.height = size;
+        const exportCtx = exportCanvas.getContext('2d');
+        
+        if (!transparentBg.checked) {
+            exportCtx.fillStyle = bgColor.value;
+            exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        }
+        
+        state.images.forEach(img => {
+            exportCtx.save();
+            exportCtx.globalAlpha = img.opacity;
+            
+            const scale = size / Math.max(canvas.width, canvas.height);
+            const x = (img.x * scale) + (size/2 - (canvas.width/2 * scale));
+            const y = (img.y * scale) + (size/2 - (canvas.height/2 * scale));
+            const width = img.width * scale;
+            const height = img.height * scale;
+            
+            if (img.flipped) {
+                exportCtx.translate(x + width, y);
+                exportCtx.scale(-1, 1);
+                exportCtx.drawImage(img.element, 0, 0, width, height);
+            } else {
+                exportCtx.drawImage(img.element, x, y, width, height);
+            }
+            
+            exportCtx.restore();
+        });
+        
+        const link = document.createElement('a');
+        link.download = `design-${new Date().getTime()}.png`;
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+    }
+
     initialize();
 });
