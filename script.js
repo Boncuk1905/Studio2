@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // App state
     let images = [];
     let selectedImage = null;
+    let hoveredImage = null;
     let isDragging = false;
     let isResizing = false;
     let isPanning = false;
@@ -38,6 +39,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let offsetX = 0;
     let offsetY = 0;
     let startPanX, startPanY;
+
+    // Grid settings
+    const gridSettings = {
+        size: 20,
+        snap: true,
+        color: 'rgba(0, 0, 0, 0.1)',
+        visible: true,
+        snapThreshold: 5 // Pixel threshold for snapping
+    };
 
     // Initialize
     setupHighDPICanvas();
@@ -75,8 +85,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Apply transformations
         ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
-        // Draw grid if snap is enabled
-        if (snapToGrid.checked) {
+        // Draw grid if enabled
+        if (gridSettings.visible && snapToGrid.checked) {
             drawGrid();
         }
 
@@ -101,23 +111,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 0, 0, img.width, img.height
             );
 
-            // Draw mirror reflection
+            // Draw mirror reflection (improved version)
             if (img.mirrorOpacity > 0) {
                 ctx.save();
-                ctx.globalAlpha = img.mirrorOpacity;
+                
+                // First draw the reflected image
+                ctx.globalAlpha = img.mirrorOpacity * 0.7; // Darker reflection
                 ctx.scale(1, -1);
                 ctx.drawImage(
                     img.element,
                     0, 0, img.originalWidth, img.originalHeight,
                     0, -img.height * 2 - img.mirrorDistance, img.width, img.height
                 );
+                
+                // Add gradient mask for fade effect
+                const gradient = ctx.createLinearGradient(
+                    0, -img.height - img.mirrorDistance,
+                    0, -img.height * 2 - img.mirrorDistance
+                );
+                gradient.addColorStop(0, 'rgba(0,0,0,0.7)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.globalCompositeOperation = 'destination-in';
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, -img.height * 2 - img.mirrorDistance, img.width, img.height);
+                
                 ctx.restore();
             }
 
-            // Draw image number
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 16px Arial';
-            ctx.fillText(img.number.toString(), 10, 20);
+            // Draw hover effect
+            if (img === hoveredImage && img !== selectedImage) {
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = '#0066ff';
+                ctx.fillRect(0, 0, img.width, img.height);
+            }
 
             // Draw selection
             if (img === selectedImage) {
@@ -127,19 +154,61 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.setLineDash([5, 5]);
                 ctx.strokeRect(0, 0, img.width, img.height);
                 
-                // Draw resize handle
+                // Draw resize handle (larger and more visible)
                 ctx.fillStyle = '#0066ff';
-                ctx.fillRect(img.width - 10, img.height - 10, 10, 10);
+                ctx.fillRect(img.width - 15, img.height - 15, 15, 15);
+                
+                // Draw rotation handle (top center)
+                ctx.beginPath();
+                ctx.arc(img.width / 2, -15, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#0066ff';
+                ctx.fill();
             }
+
+            // Draw image number (more visible)
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.font = 'bold 18px Arial';
+            ctx.strokeText(img.number.toString(), 15, 25);
+            ctx.fillText(img.number.toString(), 15, 25);
 
             ctx.restore();
         });
+
+        // Draw center guide
+        if (showGuides.checked) {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 1;
+            
+            // Vertical center line
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            
+            // Horizontal center line
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            
+            // Center point
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
 
         ctx.restore();
     }
 
     function drawGrid() {
-        const gridSize = 20;
+        const gridSize = gridSettings.size;
         const width = canvas.width / scale;
         const height = canvas.height / scale;
         
@@ -148,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
         
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.strokeStyle = gridSettings.color;
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 2]);
         
@@ -202,13 +271,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const mouseX = (e.clientX - rect.left - offsetX) / scale;
         const mouseY = (e.clientY - rect.top - offsetY) / scale;
 
-        // Check for resize handle
+        // Check for resize handle (larger hitbox)
         if (selectedImage) {
             const img = selectedImage;
             const resizeHandleX = img.x + img.width;
             const resizeHandleY = img.y + img.height;
             
-            if (Math.abs(mouseX - resizeHandleX) < 10 && Math.abs(mouseY - resizeHandleY) < 10) {
+            if (Math.abs(mouseX - resizeHandleX) < 20 && Math.abs(mouseY - resizeHandleY) < 20) {
                 isResizing = true;
                 startX = mouseX;
                 startY = mouseY;
@@ -216,13 +285,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 startHeight = img.height;
                 return;
             }
+            
+            // Check for rotation handle (top center)
+            const rotationHandleX = img.x + img.width / 2;
+            const rotationHandleY = img.y - 15;
+            if (Math.sqrt(Math.pow(mouseX - rotationHandleX, 2) + Math.pow(mouseY - rotationHandleY, 2)) < 15) {
+                // Rotation functionality would go here
+                return;
+            }
         }
 
-        // Check for image selection
+        // Check for image selection (with better hit detection)
         for (let i = images.length - 1; i >= 0; i--) {
             const img = images[i];
-            if (mouseX >= img.x && mouseX <= img.x + img.width &&
-                mouseY >= img.y && mouseY <= img.y + img.height) {
+            if (mouseX >= img.x - 10 && mouseX <= img.x + img.width + 10 &&
+                mouseY >= img.y - 10 && mouseY <= img.y + img.height + 10) {
                 selectImage(img);
                 isDragging = true;
                 startX = mouseX;
@@ -238,24 +315,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function doPan(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left - offsetX) / scale;
+        const mouseY = (e.clientY - rect.top - offsetY) / scale;
+
+        // Update hovered image
+        hoveredImage = null;
+        for (let i = images.length - 1; i >= 0; i--) {
+            const img = images[i];
+            if (mouseX >= img.x - 5 && mouseX <= img.x + img.width + 5 &&
+                mouseY >= img.y - 5 && mouseY <= img.y + img.height + 5) {
+                hoveredImage = img;
+                canvas.style.cursor = 'move';
+                break;
+            }
+        }
+        
+        if (hoveredImage === null) {
+            canvas.style.cursor = isPanning ? 'grabbing' : 'grab';
+        }
+
         if (isPanning) {
             offsetX = e.clientX - startPanX;
             offsetY = e.clientY - startPanY;
             return;
         }
 
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - offsetX) / scale;
-        const mouseY = (e.clientY - rect.top - offsetY) / scale;
-
         if (isDragging && selectedImage) {
-            selectedImage.x = startLeft + (mouseX - startX);
-            selectedImage.y = startTop + (mouseY - startY);
-
+            // Improved snap function
             if (snapToGrid.checked) {
-                const gridSize = 20;
-                selectedImage.x = Math.round(selectedImage.x / gridSize) * gridSize;
-                selectedImage.y = Math.round(selectedImage.y / gridSize) * gridSize;
+                const snapSize = gridSettings.size;
+                selectedImage.x = Math.round((startLeft + (mouseX - startX)) / snapSize) * snapSize;
+                selectedImage.y = Math.round((startTop + (mouseY - startY)) / snapSize) * snapSize;
+                
+                // Additional snap to center when close
+                if (Math.abs(selectedImage.x + selectedImage.width/2 - canvas.width/2/scale + offsetX/scale) < gridSettings.snapThreshold) {
+                    selectedImage.x = canvas.width/2/scale - offsetX/scale - selectedImage.width/2;
+                }
+                if (Math.abs(selectedImage.y + selectedImage.height/2 - canvas.height/2/scale + offsetY/scale) < gridSettings.snapThreshold) {
+                    selectedImage.y = canvas.height/2/scale - offsetY/scale - selectedImage.height/2;
+                }
+            } else {
+                selectedImage.x = startLeft + (mouseX - startX);
+                selectedImage.y = startTop + (mouseY - startY);
             }
         } 
         else if (isResizing && selectedImage) {
@@ -285,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isPanning = false;
         isDragging = false;
         isResizing = false;
-        canvas.style.cursor = 'grab';
+        canvas.style.cursor = hoveredImage ? 'pointer' : 'grab';
     }
 
     function handleImageUpload(e) {
@@ -327,11 +429,12 @@ document.addEventListener('DOMContentLoaded', function() {
             y: (canvas.height / 2 / scale) - (img.height / 2) - (offsetY / scale),
             scale: 1,
             opacity: 1,
-            mirrorOpacity: 0.3,
+            mirrorOpacity: 0.5, // Default mirror opacity
             mirrorDistance: 20,
             flipped: false,
             filename: filename,
-            number: images.length + 1
+            number: images.length + 1,
+            rotation: 0 // Added rotation property
         };
 
         images.push(newImage);
@@ -362,6 +465,7 @@ document.addEventListener('DOMContentLoaded', function() {
         guides.forEach(guide => {
             guide.style.display = isVisible ? 'block' : 'none';
         });
+        gridSettings.visible = isVisible;
     }
 
     function setupEventListeners() {
@@ -400,7 +504,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Controls
         showGuides.addEventListener('change', updateGuidesVisibility);
-        snapToGrid.addEventListener('change', render);
+        snapToGrid.addEventListener('change', function() {
+            gridSettings.snap = this.checked;
+            render();
+        });
         bgColor.addEventListener('input', render);
         transparentBg.addEventListener('change', function() {
             bgColor.disabled = this.checked;
@@ -441,6 +548,40 @@ document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('mouseup', endPan);
         document.addEventListener('mouseleave', endPan);
         canvas.addEventListener('contextmenu', e => e.preventDefault());
+        
+        // Touch support
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd);
+    }
+
+    function handleTouchStart(e) {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            startPan(mouseEvent);
+        }
+    }
+
+    function handleTouchMove(e) {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            doPan(mouseEvent);
+        }
+    }
+
+    function handleTouchEnd(e) {
+        e.preventDefault();
+        endPan();
     }
 
     function updateImageNumbers() {
@@ -493,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
         });
         
-        // Add 10% padding
+        // Add padding
         const padding = Math.max(width, height) * 0.1;
         const contentWidth = maxX - minX + padding * 2;
         const contentHeight = maxY - minY + padding * 2;
@@ -509,16 +650,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Draw all images with reflections
         images.sort((a, b) => a.number - b.number).forEach(img => {
-            const x = (img.x - centerX) * exportScale + width / 2;
-            const y = (img.y - centerY) * exportScale + height / 2;
+            const x = (img.x - centerX) * exportScale + width/2;
+            const y = (img.y - centerY) * exportScale + height/2;
             const imgWidth = img.width * exportScale;
             const imgHeight = img.height * exportScale;
 
-            // === Draw reflection ===
+            // Draw reflection (improved version)
             if (img.mirrorOpacity > 0) {
                 exportCtx.save();
-                exportCtx.globalAlpha = img.mirrorOpacity;
-
+                
+                // Draw reflected image
+                exportCtx.globalAlpha = img.mirrorOpacity * 0.7; // Darker reflection
+                
                 if (img.flipped) {
                     exportCtx.translate(x + imgWidth, y + imgHeight * 2 + img.mirrorDistance * exportScale);
                     exportCtx.scale(-1, -1);
@@ -526,42 +669,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     exportCtx.translate(x, y + imgHeight * 2 + img.mirrorDistance * exportScale);
                     exportCtx.scale(1, -1);
                 }
-
+                
                 exportCtx.drawImage(
                     img.element,
                     0, 0, img.originalWidth, img.originalHeight,
                     0, 0, imgWidth, imgHeight
                 );
-                exportCtx.restore();
-
-                // === Draw gradient mask over reflection ===
-                exportCtx.save();
+                
+                // Add gradient mask
                 exportCtx.globalCompositeOperation = 'destination-in';
                 const gradient = exportCtx.createLinearGradient(
                     x, y + imgHeight,
                     x, y + imgHeight * 2 + img.mirrorDistance * exportScale
                 );
-                gradient.addColorStop(0, 'rgba(0,0,0,1)');
+                gradient.addColorStop(0, 'rgba(0,0,0,0.7)');
                 gradient.addColorStop(1, 'rgba(0,0,0,0)');
                 exportCtx.fillStyle = gradient;
                 exportCtx.fillRect(
                     x, y + imgHeight,
                     imgWidth, imgHeight + img.mirrorDistance * exportScale
                 );
+                
                 exportCtx.restore();
             }
-
-            // === Draw main image ===
+            
+            // Draw main image
             exportCtx.save();
             exportCtx.globalAlpha = img.opacity;
-
+            
             if (img.flipped) {
                 exportCtx.translate(x + imgWidth, y);
                 exportCtx.scale(-1, 1);
             } else {
                 exportCtx.translate(x, y);
             }
-
+            
             exportCtx.drawImage(
                 img.element,
                 0, 0, img.originalWidth, img.originalHeight,
@@ -569,7 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             exportCtx.restore();
         });
-
+        
         // Download the image
         exportCanvas.toBlob(function(blob) {
             const url = URL.createObjectURL(blob);
