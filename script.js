@@ -459,67 +459,85 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function exportLayout() {
-    // Determine export dimensions
-    let width, height;
-    const size = exportSize.value;
-    
-    if (size === 'auto') {
-        width = canvas.width;
-        height = canvas.height;
-    } else {
-        const [w, h] = size.split('x').map(Number);
-        width = w;
-        height = h;
-    }
-    
-    // Create temporary canvas
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = width;
-    exportCanvas.height = height;
-    const exportCtx = exportCanvas.getContext('2d');
-    
-    // Draw background
-    if (!transparentBg.checked) {
-        exportCtx.fillStyle = bgColor.value;
-        exportCtx.fillRect(0, 0, width, height);
-    }
-    
-    // Calculate scale factors
-    const contentWidth = canvas.width / scale;
-    const contentHeight = canvas.height / scale;
-    const exportScale = Math.min(
-        width / contentWidth,
-        height / contentHeight
-    );
-    
-    // Find the primary image (number 1)
-    const primaryImage = images.find(img => img.number === 1);
-    let centerX = 0, centerY = 0;
-    
-    if (primaryImage) {
-        centerX = (primaryImage.x + primaryImage.width/2) * exportScale - width/2;
-        centerY = (primaryImage.y + primaryImage.height/2) * exportScale - height/2;
-    }
-    
-    // Draw all images with reflections
-    images.sort((a, b) => a.number - b.number).forEach(img => {
-        // Calculate position relative to export canvas
-        let x = (img.x + offsetX/scale) * exportScale - centerX;
-        let y = (img.y + offsetY/scale) * exportScale - centerY;
-        const imgWidth = img.width * exportScale;
-        const imgHeight = img.height * exportScale;
+        // Determine export dimensions
+        let width, height;
+        const size = exportSize.value;
         
-        // Draw reflection FIRST (under main image)
-        if (img.mirrorOpacity > 0) {
-            exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
+        if (size === 'auto') {
+            width = canvas.width;
+            height = canvas.height;
+        } else {
+            const [w, h] = size.split('x').map(Number);
+            width = w;
+            height = h;
+        }
+        
+        // Create temporary canvas
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = width;
+        exportCanvas.height = height;
+        const exportCtx = exportCanvas.getContext('2d');
+        
+        // Draw background
+        if (!transparentBg.checked) {
+            exportCtx.fillStyle = bgColor.value;
+            exportCtx.fillRect(0, 0, width, height);
+        }
+        
+        // Calculate scale factors
+        const contentWidth = canvas.width / scale;
+        const contentHeight = canvas.height / scale;
+        const exportScale = Math.min(
+            width / contentWidth,
+            height / contentHeight
+        );
+        
+        // Find the primary image (number 1)
+        const primaryImage = images.find(img => img.number === 1);
+        let centerX = 0, centerY = 0;
+        
+        if (primaryImage) {
+            centerX = (primaryImage.x + primaryImage.width/2) * exportScale - width/2;
+            centerY = (primaryImage.y + primaryImage.height/2) * exportScale - height/2;
+        }
+        
+        // Draw all images with reflections
+        images.sort((a, b) => a.number - b.number).forEach(img => {
+            // Calculate position relative to export canvas
+            let x = (img.x + offsetX/scale) * exportScale - centerX;
+            let y = (img.y + offsetY/scale) * exportScale - centerY;
+            const imgWidth = img.width * exportScale;
+            const imgHeight = img.height * exportScale;
             
+            // Draw reflection FIRST (under main image)
+            if (img.mirrorOpacity > 0) {
+                exportCtx.save();
+                exportCtx.globalAlpha = img.mirrorOpacity;
+                
+                if (img.flipped) {
+                    exportCtx.translate(x + imgWidth, y + imgHeight + img.mirrorDistance * exportScale);
+                    exportCtx.scale(-1, -1);
+                } else {
+                    exportCtx.translate(x, y + imgHeight + img.mirrorDistance * exportScale);
+                    exportCtx.scale(1, -1);
+                }
+                
+                exportCtx.drawImage(
+                    img.element,
+                    0, 0, img.originalWidth, img.originalHeight,
+                    0, 0, imgWidth, imgHeight
+                );
+                exportCtx.restore();
+            }
+            
+            // Draw main image
+            exportCtx.save();
+            exportCtx.globalAlpha = img.opacity;
             if (img.flipped) {
-                exportCtx.translate(x + imgWidth, y + imgHeight + img.mirrorDistance * exportScale);
-                exportCtx.scale(-1, -1);
+                exportCtx.translate(x + imgWidth, y);
+                exportCtx.scale(-1, 1);
             } else {
-                exportCtx.translate(x, y + imgHeight + img.mirrorDistance * exportScale);
-                exportCtx.scale(1, -1);
+                exportCtx.translate(x, y);
             }
             
             exportCtx.drawImage(
@@ -528,35 +546,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 0, 0, imgWidth, imgHeight
             );
             exportCtx.restore();
-        }
+        });
         
-        // Draw main image
-        exportCtx.save();
-        exportCtx.globalAlpha = img.opacity;
-        if (img.flipped) {
-            exportCtx.translate(x + imgWidth, y);
-            exportCtx.scale(-1, 1);
-        } else {
-            exportCtx.translate(x, y);
-        }
-        
-        exportCtx.drawImage(
-            img.element,
-            0, 0, img.originalWidth, img.originalHeight,
-            0, 0, imgWidth, imgHeight
-        );
-        exportCtx.restore();
-    });
-    
-    // Download the image
-    exportCanvas.toBlob(function(blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `design-${new Date().getTime()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 'image/png');
-}
+        // Download the image
+        exportCanvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `design-${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
+});
