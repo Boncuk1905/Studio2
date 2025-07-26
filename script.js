@@ -70,6 +70,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Apply transformations
         ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
+        // Draw grid if snap is enabled
+        if (snapToGrid.checked) {
+            drawGrid();
+        }
+
         // Draw all images with reflections
         images.forEach(img => {
             ctx.save();
@@ -117,6 +122,39 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.restore();
         });
 
+        ctx.restore();
+    }
+
+    function drawGrid() {
+        const gridSize = 20;
+        const width = canvas.width / scale;
+        const height = canvas.height / scale;
+        
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+        
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        
+        // Vertical lines
+        for (let x = 0; x <= width; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        }
+        
+        // Horizontal lines
+        for (let y = 0; y <= height; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+        
         ctx.restore();
     }
 
@@ -202,17 +240,9 @@ document.addEventListener('DOMContentLoaded', function() {
             selectedImage.y = startTop + (mouseY - startY);
 
             if (snapToGrid.checked) {
-                const centerX = selectedImage.x + selectedImage.width / 2;
-                const centerY = selectedImage.y + selectedImage.height / 2;
-                const canvasCenterX = canvas.width / scale / 2;
-                const canvasCenterY = canvas.height / scale / 2;
-
-                if (Math.abs(centerX - canvasCenterX) < 20) {
-                    selectedImage.x = canvasCenterX - selectedImage.width / 2;
-                }
-                if (Math.abs(centerY - canvasCenterY) < 20) {
-                    selectedImage.y = canvasCenterY - selectedImage.height / 2;
-                }
+                const gridSize = 20;
+                selectedImage.x = Math.round(selectedImage.x / gridSize) * gridSize;
+                selectedImage.y = Math.round(selectedImage.y / gridSize) * gridSize;
             }
         } 
         else if (isResizing && selectedImage) {
@@ -236,6 +266,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleImageUpload(e) {
         const files = e.target.files;
         
+        if (!files || files.length === 0) return;
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const reader = new FileReader();
@@ -245,7 +277,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 img.onload = function() {
                     addImageToCanvas(img, file.name);
                 };
+                img.onerror = function() {
+                    console.error("Failed to load image:", file.name);
+                };
                 img.src = event.target.result;
+            };
+            
+            reader.onerror = function() {
+                console.error("Failed to read file:", file.name);
             };
             
             reader.readAsDataURL(file);
@@ -263,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
             y: (canvas.height / 2 / scale) - (img.height / 2) - (offsetY / scale),
             scale: 1,
             opacity: 1,
-            mirrorOpacity: 0.3, // Default mirror opacity
+            mirrorOpacity: 0.3,
             flipped: false,
             filename: filename
         };
@@ -287,61 +326,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateGuidesVisibility() {
-        const guides = document.querySelectorAll('.guide-line');
+        const guides = document.querySelectorAll('.guide-line, .guide-center');
+        const isVisible = showGuides.checked;
         guides.forEach(guide => {
-            guide.style.display = showGuides.checked ? 'block' : 'none';
+            guide.style.display = isVisible ? 'block' : 'none';
         });
     }
 
     function setupEventListeners() {
+        // File upload
         imageUpload.addEventListener('change', handleImageUpload);
+        
+        // Buttons
         downloadBtn.addEventListener('click', exportLayout);
-        showGuides.addEventListener('change', updateGuidesVisibility);
-        snapToGrid.addEventListener('change', render);
-        bgColor.addEventListener('input', render);
-        transparentBg.addEventListener('change', function() {
-            bgColor.disabled = this.checked;
-            render();
-        });
-
-        // Canvas interaction
-        canvas.addEventListener('wheel', handleZoom);
-        canvas.addEventListener('mousedown', startPan);
-        document.addEventListener('mousemove', doPan);
-        document.addEventListener('mouseup', endPan);
-        document.addEventListener('mouseleave', endPan);
-        canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-        // Property controls
-        scaleSlider.addEventListener('input', function() {
-            if (selectedImage) {
-                selectedImage.scale = this.value / 100;
-                selectedImage.width = selectedImage.originalWidth * selectedImage.scale;
-                selectedImage.height = selectedImage.originalHeight * selectedImage.scale;
-                scaleValue.textContent = this.value;
-            }
-        });
-
-        mirrorOpacitySlider.addEventListener('input', function() {
-            if (selectedImage) {
-                selectedImage.mirrorOpacity = this.value / 100;
-                mirrorOpacityValue.textContent = this.value;
-            }
-        });
-
         flipBtn.addEventListener('click', function() {
             if (selectedImage) {
                 selectedImage.flipped = !selectedImage.flipped;
             }
         });
-
         centerBtn.addEventListener('click', function() {
             if (selectedImage) {
                 selectedImage.x = (canvas.width / 2 / scale) - (selectedImage.width / 2) - (offsetX / scale);
                 selectedImage.y = (canvas.height / 2 / scale) - (selectedImage.height / 2) - (offsetY / scale);
             }
         });
-
         deleteBtn.addEventListener('click', function() {
             if (selectedImage) {
                 const index = images.indexOf(selectedImage);
@@ -351,61 +359,109 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+
+        // Controls
+        showGuides.addEventListener('change', updateGuidesVisibility);
+        snapToGrid.addEventListener('change', render);
+        bgColor.addEventListener('input', render);
+        transparentBg.addEventListener('change', function() {
+            bgColor.disabled = this.checked;
+            render();
+        });
+        scaleSlider.addEventListener('input', function() {
+            if (selectedImage) {
+                selectedImage.scale = this.value / 100;
+                selectedImage.width = selectedImage.originalWidth * selectedImage.scale;
+                selectedImage.height = selectedImage.originalHeight * selectedImage.scale;
+                scaleValue.textContent = this.value;
+            }
+        });
+        mirrorOpacitySlider.addEventListener('input', function() {
+            if (selectedImage) {
+                selectedImage.mirrorOpacity = this.value / 100;
+                mirrorOpacityValue.textContent = this.value;
+            }
+        });
+
+        // Canvas interaction
+        canvas.addEventListener('wheel', handleZoom);
+        canvas.addEventListener('mousedown', startPan);
+        document.addEventListener('mousemove', doPan);
+        document.addEventListener('mouseup', endPan);
+        document.addEventListener('mouseleave', endPan);
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
     }
 
     function exportLayout() {
-    // Determine export dimensions
-    let width, height;
-    const size = exportSize.value;
-    
-    if (size === 'auto') {
-        width = canvas.width;
-        height = canvas.height;
-    } else {
-        const [w, h] = size.split('x').map(Number);
-        width = w;
-        height = h;
-    }
-    
-    // Create temporary canvas
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = width;
-    exportCanvas.height = height;
-    const exportCtx = exportCanvas.getContext('2d');
-    
-    // Draw background
-    if (!transparentBg.checked) {
-        exportCtx.fillStyle = bgColor.value;
-        exportCtx.fillRect(0, 0, width, height);
-    }
-    
-    // Calculate scale factors
-    const contentWidth = canvas.width / scale;
-    const contentHeight = canvas.height / scale;
-    const exportScale = Math.min(
-        width / contentWidth,
-        height / contentHeight
-    );
-    
-    // Draw all images with reflections
-    images.forEach(img => {
-        // Calculate position
-        const x = (img.x + offsetX/scale) * exportScale;
-        const y = (img.y + offsetY/scale) * exportScale;
-        const imgWidth = img.width * exportScale;
-        const imgHeight = img.height * exportScale;
+        // Determine export dimensions
+        let width, height;
+        const size = exportSize.value;
         
-        // Draw reflection FIRST (under main image)
-        if (img.mirrorOpacity > 0) {
-            exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
+        if (size === 'auto') {
+            width = canvas.width;
+            height = canvas.height;
+        } else {
+            const [w, h] = size.split('x').map(Number);
+            width = w;
+            height = h;
+        }
+        
+        // Create temporary canvas
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = width;
+        exportCanvas.height = height;
+        const exportCtx = exportCanvas.getContext('2d');
+        
+        // Draw background
+        if (!transparentBg.checked) {
+            exportCtx.fillStyle = bgColor.value;
+            exportCtx.fillRect(0, 0, width, height);
+        }
+        
+        // Calculate scale factors
+        const contentWidth = canvas.width / scale;
+        const contentHeight = canvas.height / scale;
+        const exportScale = Math.min(
+            width / contentWidth,
+            height / contentHeight
+        );
+        
+        // Draw all images with reflections
+        images.forEach(img => {
+            // Calculate position
+            const x = (img.x + offsetX/scale) * exportScale;
+            const y = (img.y + offsetY/scale) * exportScale;
+            const imgWidth = img.width * exportScale;
+            const imgHeight = img.height * exportScale;
             
+            // Draw reflection FIRST (under main image)
+            if (img.mirrorOpacity > 0) {
+                exportCtx.save();
+                exportCtx.globalAlpha = img.mirrorOpacity;
+                
+                if (img.flipped) {
+                    exportCtx.translate(x + imgWidth, y + imgHeight);
+                    exportCtx.scale(-1, -1);
+                } else {
+                    exportCtx.translate(x, y + imgHeight);
+                    exportCtx.scale(1, -1);
+                }
+                
+                exportCtx.drawImage(
+                    img.element,
+                    0, 0, img.originalWidth, img.originalHeight,
+                    0, 0, imgWidth, imgHeight
+                );
+                exportCtx.restore();
+            }
+            
+            // Draw main image
+            exportCtx.save();
             if (img.flipped) {
-                exportCtx.translate(x + imgWidth, y + imgHeight);
-                exportCtx.scale(-1, -1);
+                exportCtx.translate(x + imgWidth, y);
+                exportCtx.scale(-1, 1);
             } else {
-                exportCtx.translate(x, y + imgHeight);
-                exportCtx.scale(1, -1);
+                exportCtx.translate(x, y);
             }
             
             exportCtx.drawImage(
@@ -414,34 +470,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 0, 0, imgWidth, imgHeight
             );
             exportCtx.restore();
-        }
+        });
         
-        // Draw main image
-        exportCtx.save();
-        if (img.flipped) {
-            exportCtx.translate(x + imgWidth, y);
-            exportCtx.scale(-1, 1);
-        } else {
-            exportCtx.translate(x, y);
-        }
-        
-        exportCtx.drawImage(
-            img.element,
-            0, 0, img.originalWidth, img.originalHeight,
-            0, 0, imgWidth, imgHeight
-        );
-        exportCtx.restore();
-    });
-    
-    // Download the image
-    exportCanvas.toBlob(function(blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `design-${new Date().getTime()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 'image/png');
-}
+        // Download the image
+        exportCanvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `design-${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
+});
