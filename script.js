@@ -4,9 +4,31 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // ... (tidligere DOM elementer fra før) ...
+
 
     // Tilføj zoom-relaterede variabler
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageUpload = document.getElementById('imageUpload');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const bgColor = document.getElementById('bgColor');
+    const transparentBg = document.getElementById('transparentBg');
+    const exportSize = document.getElementById('exportSize');
+    const snapToGrid = document.getElementById('snapToGrid');
+    const showGuides = document.getElementById('showGuides');
+    const imageProperties = document.getElementById('imageProperties');
+    const scaleSlider = document.getElementById('scaleSlider');
+    const scaleValue = document.getElementById('scaleValue');
+    const mirrorOpacitySlider = document.getElementById('mirrorOpacitySlider');
+    const mirrorOpacityValue = document.getElementById('mirrorOpacityValue');
+    const mirrorDistanceSlider = document.getElementById('mirrorDistanceSlider');
+    const mirrorDistanceValue = document.getElementById('mirrorDistanceValue');
+    const imageNumberInput = document.getElementById('imageNumberInput');
+    const imageNumberValue = document.getElementById('imageNumberValue');
+    const flipBtn = document.getElementById('flipBtn');
+    const centerBtn = document.getElementById('centerBtn');
+    const centerExportBtn = document.getElementById('centerExportBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
     const zoomInBtn = document.getElementById('zoomInBtn');
     const zoomOutBtn = document.getElementById('zoomOutBtn');
     const resetZoomBtn = document.getElementById('resetZoomBtn');
