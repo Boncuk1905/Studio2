@@ -37,6 +37,11 @@
                     <label><input type="checkbox" id="snapToGrid" checked> Snap til grid</label>
                     <label><input type="checkbox" id="showGuides" checked> Vis guide</label>
                 </div>
+
+                <div class="control-group">
+                    <label>Mirror Afstand: <span id="mirrorDistanceValue">20</span>px</label>
+                    <input type="range" id="mirrorDistanceSlider" min="0" max="100" value="20">
+                </div>
             </div>
         </div>
         
@@ -50,6 +55,10 @@
         <div class="image-properties" id="imageProperties" style="display: none;">
             <h3>Billedegenskaber</h3>
             <div class="control-group">
+                <label>Billednummer: <span id="imageNumberValue">1</span></label>
+                <input type="number" id="imageNumberInput" min="1" max="10" value="1">
+            </div>
+            <div class="control-group">
                 <label>Skala: <span id="scaleValue">100</span>%</label>
                 <input type="range" id="scaleSlider" min="10" max="300" value="100">
             </div>
@@ -60,6 +69,7 @@
             <div class="control-group">
                 <button id="flipBtn">Spejlvend</button>
                 <button id="centerBtn">Centrer</button>
+                <button id="centerExportBtn">Centrer i eksport</button>
                 <button id="deleteBtn">Slet billede</button>
             </div>
         </div>
