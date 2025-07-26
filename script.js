@@ -74,9 +74,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             reader.readAsDataURL(file);
         }
-        
-        // Reset input to allow uploading same file again
-        e.target.value = '';
     }
     
     // Create image wrapper element
