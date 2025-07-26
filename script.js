@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM elements
+    // DOM elements - TILFØJ KUN DE ELEMENTER DER FINDES I DIN HTML
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d');
     const imageUpload = document.getElementById('imageUpload');
@@ -53,6 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize the app
     function initialize() {
+        if (!canvas) {
+            console.error('Canvas element ikke fundet');
+            return;
+        }
+        
         resizeCanvasToContainer();
         setupEventListeners();
         render();
@@ -156,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        Array.from(files).forEach(file => {
+        Array.from(files).forEach((file) => {
             if (!file.type.match('image.*')) {
                 console.log('Ignorerer ikke-billede:', file.name);
                 return;
@@ -168,8 +173,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 img.onload = function() {
                     addImageToCanvas(img, file.name);
                 };
+                img.onerror = function() {
+                    console.error('Fejl ved indlæsning af billede:', file.name);
+                };
                 img.src = event.target.result;
             };
+            reader.onerror = () => console.error('Fil læsefejl');
             reader.readAsDataURL(file);
         });
     }
@@ -315,37 +324,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function setupEventListeners() {
         // File handling
-        imageUpload.addEventListener('change', handleImageUpload);
+        if (imageUpload) {
+            imageUpload.addEventListener('change', handleImageUpload);
+        } else {
+            console.error('imageUpload element ikke fundet');
+        }
         
-        // Buttons
-        downloadBtn.addEventListener('click', exportLayout);
-        flipBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.selectedImage.flipped = !state.selectedImage.flipped;
-            }
-        });
-        centerBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
-                state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
-            }
-        });
-        deleteBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.images = state.images.filter(img => img !== state.selectedImage);
-                selectImage(null);
-            }
-        });
+        // Buttons - TILFØJ KUN FOR DE KNAPPER DER FINDES
+        if (downloadBtn) downloadBtn.addEventListener('click', exportLayout);
+        if (flipBtn) flipBtn.addEventListener('click', flipImage);
+        if (centerBtn) centerBtn.addEventListener('click', centerImage);
+        if (deleteBtn) deleteBtn.addEventListener('click', deleteImage);
         
         // Canvas interaction
-        canvas.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        if (canvas) {
+            canvas.addEventListener('mousedown', handleMouseDown);
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
         
         // Window resize
-        window.addEventListener('resize', () => {
-            resizeCanvasToContainer();
-        });
+        window.addEventListener('resize', resizeCanvasToContainer);
+    }
+
+    function flipImage() {
+        if (state.selectedImage) {
+            state.selectedImage.flipped = !state.selectedImage.flipped;
+        }
+    }
+
+    function centerImage() {
+        if (state.selectedImage) {
+            state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
+            state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
+        }
+    }
+
+    function deleteImage() {
+        if (state.selectedImage) {
+            state.images = state.images.filter(img => img !== state.selectedImage);
+            selectImage(null);
+        }
     }
 
     function exportLayout() {
