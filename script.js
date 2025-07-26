@@ -1,3 +1,4 @@
+// script.js - Komplet billedredigeringsværktøj med spejleffekt
 document.addEventListener('DOMContentLoaded', function() {
     // DOM elements
     const previewArea = document.getElementById('previewArea');
@@ -469,13 +470,13 @@ document.addEventListener('DOMContentLoaded', function() {
             height = h;
         }
         
-        // Create export canvas
+        // Create high quality export canvas
         const exportCanvas = document.createElement('canvas');
-        const exportDpi = 2; // For high quality export
-        exportCanvas.width = width * exportDpi;
-        exportCanvas.height = height * exportDpi;
+        const dpi = 2; // High quality export
+        exportCanvas.width = width * dpi;
+        exportCanvas.height = height * dpi;
         const exportCtx = exportCanvas.getContext('2d');
-        exportCtx.scale(exportDpi, exportDpi);
+        exportCtx.scale(dpi, dpi);
         
         // Draw background
         if (!transparentBg.checked) {
@@ -493,10 +494,14 @@ document.addEventListener('DOMContentLoaded', function() {
                   (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
         });
         
-        const contentWidth = maxX - minX;
-        const contentHeight = maxY - minY;
-        const scaleX = width / (contentWidth + 40); // Add padding
-        const scaleY = height / (contentHeight + 40);
+        // Add 10% padding
+        const padding = Math.max(width, height) * 0.1;
+        const contentWidth = maxX - minX + padding * 2;
+        const contentHeight = maxY - minY + padding * 2;
+        
+        // Calculate scale to fit
+        const scaleX = width / contentWidth;
+        const scaleY = height / contentHeight;
         const exportScale = Math.min(scaleX, scaleY);
         
         // Center point
@@ -505,31 +510,32 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Draw all images with reflections
         images.sort((a, b) => a.number - b.number).forEach(img => {
-            // Calculate position
+            // Calculate position with padding
             const x = (img.x - centerX) * exportScale + width/2;
             const y = (img.y - centerY) * exportScale + height/2;
             const imgWidth = img.width * exportScale;
             const imgHeight = img.height * exportScale;
             
-            // Draw reflection FIRST (under main image)
+            // Draw reflection
             if (img.mirrorOpacity > 0) {
                 exportCtx.save();
                 
                 // Create gradient for fade effect
                 const gradient = exportCtx.createLinearGradient(
-                    x, y + imgHeight + img.mirrorDistance * exportScale,
+                    x, y + imgHeight,
                     x, y + imgHeight * 2 + img.mirrorDistance * exportScale
                 );
-                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-                gradient.addColorStop(1, "rgba(255,255,255,0)");
+                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity * 0.8})`);
+                gradient.addColorStop(0.5, `rgba(255,255,255,${img.mirrorOpacity * 0.3})`);
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
                 
                 // Apply gradient mask
                 exportCtx.save();
                 exportCtx.globalCompositeOperation = 'destination-over';
                 exportCtx.fillStyle = gradient;
                 exportCtx.fillRect(
-                    x, y + imgHeight + img.mirrorDistance * exportScale,
-                    imgWidth, imgHeight
+                    x, y + imgHeight,
+                    imgWidth, imgHeight + img.mirrorDistance * exportScale
                 );
                 exportCtx.restore();
                 
@@ -538,10 +544,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 exportCtx.globalAlpha = img.mirrorOpacity;
                 
                 if (img.flipped) {
-                    exportCtx.translate(x + imgWidth, y + imgHeight + img.mirrorDistance * exportScale);
+                    exportCtx.translate(x + imgWidth, y + imgHeight * 2 + img.mirrorDistance * exportScale);
                     exportCtx.scale(-1, -1);
                 } else {
-                    exportCtx.translate(x, y + imgHeight + img.mirrorDistance * exportScale);
+                    exportCtx.translate(x, y + imgHeight * 2 + img.mirrorDistance * exportScale);
                     exportCtx.scale(1, -1);
                 }
                 
@@ -550,6 +556,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     0, 0, img.originalWidth, img.originalHeight,
                     0, 0, imgWidth, imgHeight
                 );
+                exportCtx.restore();
                 exportCtx.restore();
             }
             
@@ -577,7 +584,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `mirror-design-${new Date().getTime()}.png`;
+            a.download = `mirror-export-${new Date().getTime()}.png`;
             document.body.appendChild(a);
             a.click();
             setTimeout(() => {
