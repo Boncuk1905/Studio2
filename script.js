@@ -67,16 +67,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // =====================
     // SECTION 3: INITIALIZATION
     // =====================
-    function initialize() {
-        if (!ctx) {
-            console.error('Kunne ikke få canvas context');
-            return;
-        }
-
-        resizeCanvasToContainer();
-        setupEventListeners();
-        requestAnimationFrame(renderLoop);
+  function initialize() {
+    if (!ctx) {
+        console.error('Kunne ikke få canvas context');
+        return;
     }
+
+    resizeCanvasToContainer();
+    setupEventListeners();
+    
+    // Initial render uden transformations
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    render();
+    requestAnimationFrame(renderLoop);
+}
 
     function resizeCanvasToContainer() {
         const container = canvas.parentElement;
@@ -100,9 +104,10 @@ document.addEventListener('DOMContentLoaded', function() {
         requestAnimationFrame(renderLoop);
     }
 
-    function render() {
-        clearCanvas();
-        drawBackground();
+  function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Nulstil transformation
+    clearCanvas();
+     drawBackground();
         
         ctx.save();
         applyCanvasTransformations();
@@ -176,20 +181,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function drawSingleImage(img) {
-        ctx.save();
-        ctx.globalAlpha = img.opacity;
-        
-        if (img.flipped) {
-            ctx.translate(img.x + img.width, img.y);
-            ctx.scale(-1, 1);
-            ctx.drawImage(img.element, 0, 0, img.width, img.height);
-        } else {
-            ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
-        }
-        
-        ctx.restore();
+  function drawSingleImage(img) {
+    ctx.save();
+    ctx.globalAlpha = img.opacity;
+    console.log('Rendering image at:', img.x, img.y, img.width, img.height);
+ctx.strokeStyle = 'red';
+ctx.strokeRect(img.x, img.y, img.width, img.height); // Tegn en rød ramme om billedet
+    // Anvend kun scale transformation
+    ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
+    
+    if (img.flipped) {
+        ctx.translate(img.x + img.width, img.y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img.element, 0, 0, img.width, img.height);
+    } else {
+        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
     }
+    
+    ctx.restore();
+}
 
     function drawImageReflection(img) {
         ctx.save();
@@ -243,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleImageUpload(e) {
         const files = e.target.files;
         if (!files || files.length === 0) return;
-
+console.log('Billede indlæst:', file.name, img.width, img.height);
         Array.from(files).forEach(file => {
             if (!file.type.match('image.*')) {
                 console.log('Ikke et billede:', file.name);
@@ -410,12 +420,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // SECTION 7: UTILITIES
     // =====================
     function getCanvasPosition(e) {
-        const rect = canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - rect.left - state.offsetX) / state.scale,
-            y: (e.clientY - rect.top - state.offsetY) / state.scale
-        };
-    }
+    const rect = canvas.getBoundingClientRect();
+    const scale = state.scale;
+    return {
+        x: (e.clientX - rect.left - state.offsetX) / scale,
+        y: (e.clientY - rect.top - state.offsetY) / scale
+    };
+}
 
     function isOverImage(pos, img) {
         return pos.x >= img.x && pos.x <= img.x + img.width &&
