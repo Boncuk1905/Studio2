@@ -18,6 +18,12 @@
             
             <div class="controls-section">
                 <div class="control-group">
+                    <button id="zoomInBtn">+ Zoom</button>
+                    <button id="zoomOutBtn">- Zoom</button>
+                    <button id="resetZoomBtn">Reset Zoom</button>
+                </div>
+                
+                <div class="control-group">
                     <label for="bgColor">Baggrundsfarve:</label>
                     <input type="color" id="bgColor" value="#ffffff">
                     <label><input type="checkbox" id="transparentBg"> Transparent</label>
@@ -36,10 +42,11 @@
                 <div class="control-group">
                     <label><input type="checkbox" id="snapToGrid" checked> Snap til grid</label>
                     <label><input type="checkbox" id="showGuides" checked> Vis guide</label>
+                    <label><input type="checkbox" id="showMirror" checked> Vis spejling</label>
                 </div>
 
                 <div class="control-group">
-                    <label>Mirror Afstand: <span id="mirrorDistanceValue">20</span>px</label>
+                    <label>Spejlafstand: <span id="mirrorDistanceValue">20</span>px</label>
                     <input type="range" id="mirrorDistanceSlider" min="0" max="100" value="20">
                 </div>
             </div>
@@ -54,10 +61,6 @@
         
         <div class="image-properties" id="imageProperties" style="display: none;">
             <h3>Billedegenskaber</h3>
-            <div class="control-group">
-                <label>Billednummer: <span id="imageNumberValue">1</span></label>
-                <input type="number" id="imageNumberInput" min="1" max="10" value="1">
-            </div>
             <div class="control-group">
                 <label>Skala: <span id="scaleValue">100</span>%</label>
                 <input type="range" id="scaleSlider" min="10" max="300" value="100">
