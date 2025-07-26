@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minizoo.dk - Okan</title>
+    <title>Billederedigeringsværktøj</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,8 +34,8 @@
                 </div>
                 
                 <div class="control-group">
-                    <label><input type="checkbox" id="snapToGrid"> Snap til grid</label>
-                    <label><input type="checkbox" id="showGuides"> Vis midterlinjer</label>
+                    <label><input type="checkbox" id="snapToGrid" checked> Snap til grid</label>
+                    <label><input type="checkbox" id="showGuides" checked> Vis guide</label>
                 </div>
             </div>
         </div>
@@ -44,6 +44,7 @@
             <canvas id="previewCanvas"></canvas>
             <div class="guide-line vertical"></div>
             <div class="guide-line horizontal"></div>
+            <div class="guide-center"></div>
         </div>
         
         <div class="image-properties" id="imageProperties" style="display: none;">
