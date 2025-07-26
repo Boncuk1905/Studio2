@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportSize = document.getElementById('exportSize');
     const snapToGrid = document.getElementById('snapToGrid');
     const showGuides = document.getElementById('showGuides');
+    const showMirror = document.getElementById('showMirror');
     const imageProperties = document.getElementById('imageProperties');
     const scaleSlider = document.getElementById('scaleSlider');
     const scaleValue = document.getElementById('scaleValue');
@@ -16,11 +17,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const mirrorOpacityValue = document.getElementById('mirrorOpacityValue');
     const mirrorDistanceSlider = document.getElementById('mirrorDistanceSlider');
     const mirrorDistanceValue = document.getElementById('mirrorDistanceValue');
-    const imageNumberInput = document.getElementById('imageNumberInput');
-    const imageNumberValue = document.getElementById('imageNumberValue');
     const flipBtn = document.getElementById('flipBtn');
     const centerBtn = document.getElementById('centerBtn');
     const deleteBtn = document.getElementById('deleteBtn');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const resetZoomBtn = document.getElementById('resetZoomBtn');
 
     // App state
     const state = {
@@ -39,7 +41,17 @@ document.addEventListener('DOMContentLoaded', function() {
         offsetX: 0,
         offsetY: 0,
         startPanX: 0,
-        startPanY: 0
+        startPanY: 0,
+        minScale: 0.1,
+        maxScale: 3,
+        mirrorVisible: true,
+        grid: {
+            size: 20,
+            enabled: true,
+            color: 'rgba(0, 0, 0, 0.1)',
+            visible: true,
+            snapThreshold: 5
+        }
     };
 
     // Initialize the app
@@ -88,11 +100,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawGrid() {
-        const gridSize = 20;
+        const gridSize = state.grid.size;
         const width = canvas.width;
         const height = canvas.height;
         
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.strokeStyle = state.grid.color;
         ctx.lineWidth = 1;
         
         for (let x = 0; x <= width; x += gridSize) {
@@ -122,6 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function drawSingleImage(img) {
         ctx.save();
+        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
         ctx.globalAlpha = img.opacity;
         
         if (img.flipped) {
@@ -132,11 +145,47 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
         }
         
+        // Draw mirror effect if enabled
+        if (showMirror.checked && img.mirrorOpacity > 0) {
+            drawMirrorEffect(img);
+        }
+        
+        ctx.restore();
+    }
+
+    function drawMirrorEffect(img) {
+        ctx.save();
+        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
+        
+        // Create gradient for fade effect
+        const gradient = ctx.createLinearGradient(
+            img.x, img.y + img.height,
+            img.x, img.y + img.height + img.mirrorDistance
+        );
+        gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        
+        // Draw mirrored image
+        ctx.globalAlpha = img.mirrorOpacity * 0.7;
+        ctx.save();
+        ctx.translate(0, img.height + img.mirrorDistance);
+        ctx.scale(1, -1);
+        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
+        ctx.restore();
+        
+        // Apply gradient fade
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = gradient;
+        ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+        
         ctx.restore();
     }
 
     function drawImageSelection(img) {
         ctx.save();
+        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
+        
+        // Selection border
         ctx.strokeStyle = '#3498db';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
@@ -149,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
             img.y + img.height - 8,
             10, 10
         );
+        
         ctx.restore();
     }
 
@@ -168,8 +218,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 img.onload = function() {
                     addImageToCanvas(img, file.name);
                 };
+                img.onerror = function() {
+                    console.error('Fejl ved indlæsning af billede:', file.name);
+                };
                 img.src = event.target.result;
             };
+            reader.onerror = () => console.error('Fil læsefejl');
             reader.readAsDataURL(file);
         });
     }
@@ -181,11 +235,11 @@ document.addEventListener('DOMContentLoaded', function() {
             originalHeight: img.height,
             width: img.width,
             height: img.height,
-            x: (canvas.width - img.width) / 2,
-            y: (canvas.height - img.height) / 2,
+            x: (canvas.width / 2 - img.width / 2 - state.offsetX) / state.scale,
+            y: (canvas.height / 2 - img.height / 2 - state.offsetY) / state.scale,
             scale: 1,
             opacity: 1,
-            mirrorOpacity: 0.3,
+            mirrorOpacity: mirrorOpacitySlider.value / 100,
             mirrorDistance: parseInt(mirrorDistanceSlider.value),
             flipped: false,
             filename: filename,
@@ -277,6 +331,31 @@ document.addEventListener('DOMContentLoaded', function() {
         canvas.style.cursor = 'default';
     }
 
+    function handleZoom(e) {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const wheelDelta = e.deltaY < 0 ? 1 : -1;
+        const zoomFactor = 1 + (wheelDelta * zoomIntensity);
+        
+        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+        const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+        
+        applyZoom(zoomFactor, mouseX, mouseY);
+    }
+
+    function applyZoom(zoomFactor, focusX, focusY) {
+        const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.scale * zoomFactor));
+        state.offsetX = focusX - (focusX - state.offsetX) * (newScale / state.scale);
+        state.offsetY = focusY - (focusY - state.offsetY) * (newScale / state.scale);
+        state.scale = newScale;
+    }
+
+    function resetZoom() {
+        state.scale = 1;
+        state.offsetX = 0;
+        state.offsetY = 0;
+    }
+
     function getCanvasPosition(e) {
         const rect = canvas.getBoundingClientRect();
         return {
@@ -299,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function snapToGridValue(value) {
-        const gridSize = 20;
+        const gridSize = state.grid.size;
         return Math.round(value / gridSize) * gridSize;
     }
 
@@ -321,8 +400,6 @@ document.addEventListener('DOMContentLoaded', function() {
         mirrorOpacityValue.textContent = Math.round(img.mirrorOpacity * 100);
         mirrorDistanceSlider.value = img.mirrorDistance;
         mirrorDistanceValue.textContent = img.mirrorDistance;
-        imageNumberInput.value = img.number;
-        imageNumberValue.textContent = img.number;
     }
 
     function setupEventListeners() {
@@ -338,8 +415,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         centerBtn.addEventListener('click', () => {
             if (state.selectedImage) {
-                state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
-                state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
+                state.selectedImage.x = (canvas.width / 2 - state.selectedImage.width / 2 - state.offsetX) / state.scale;
+                state.selectedImage.y = (canvas.height / 2 - state.selectedImage.height / 2 - state.offsetY) / state.scale;
             }
         });
         deleteBtn.addEventListener('click', () => {
@@ -348,6 +425,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectImage(null);
             }
         });
+        
+        // Zoom controls
+        zoomInBtn.addEventListener('click', () => applyZoom(1.1, canvas.width/2, canvas.height/2));
+        zoomOutBtn.addEventListener('click', () => applyZoom(0.9, canvas.width/2, canvas.height/2));
+        resetZoomBtn.addEventListener('click', resetZoom);
         
         // Sliders
         scaleSlider.addEventListener('input', (e) => {
@@ -374,43 +456,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        imageNumberInput.addEventListener('change', (e) => {
-            if (state.selectedImage) {
-                state.selectedImage.number = parseInt(e.target.value);
-                imageNumberValue.textContent = e.target.value;
-            }
-        });
-        
         // Canvas interaction
         canvas.addEventListener('mousedown', handleMouseDown);
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomIntensity = 0.1;
-            const wheelDelta = e.deltaY < 0 ? 1 : -1;
-            const zoomFactor = 1 + (wheelDelta * zoomIntensity);
-            applyZoom(zoomFactor, e.clientX, e.clientY);
-        }, { passive: false });
+        canvas.addEventListener('wheel', handleZoom, { passive: false });
         
         // Window resize
         window.addEventListener('resize', () => {
             resizeCanvasToContainer();
         });
-    }
-
-    function applyZoom(zoomFactor, mouseX, mouseY) {
-        const newScale = state.scale * zoomFactor;
-        if (newScale < 0.1 || newScale > 10) return;
-        
-        const rect = canvas.getBoundingClientRect();
-        const focusX = mouseX - rect.left;
-        const focusY = mouseY - rect.top;
-        
-        state.offsetX = focusX - (focusX - state.offsetX) * zoomFactor;
-        state.offsetY = focusY - (focusY - state.offsetY) * zoomFactor;
-        
-        state.scale = newScale;
     }
 
     function exportLayout() {
@@ -451,6 +506,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 exportCtx.drawImage(img.element, 0, 0, width, height);
             } else {
                 exportCtx.drawImage(img.element, x, y, width, height);
+            }
+            
+            // Draw mirror effect if enabled
+            if (showMirror.checked && img.mirrorOpacity > 0) {
+                exportCtx.save();
+                exportCtx.globalAlpha = img.mirrorOpacity * 0.7;
+                exportCtx.translate(0, height + img.mirrorDistance * scale);
+                exportCtx.scale(1, -1);
+                exportCtx.drawImage(img.element, x, y, width, height);
+                exportCtx.restore();
             }
             
             exportCtx.restore();
