@@ -1,3 +1,6 @@
+Her er den komplette rettede `script.js`-fil med en fuldstændig løsning på problemet med manglende spejlbilleder i eksporten:
+
+```javascript
 document.addEventListener('DOMContentLoaded', function() {
     // DOM elements
     const previewArea = document.getElementById('previewArea');
@@ -464,19 +467,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const size = exportSize.value;
         
         if (size === 'auto') {
-            width = canvas.width;
-            height = canvas.height;
+            width = Math.round(canvas.width / window.devicePixelRatio);
+            height = Math.round(canvas.height / window.devicePixelRatio);
         } else {
             const [w, h] = size.split('x').map(Number);
             width = w;
             height = h;
         }
         
-        // Create temporary canvas
+        // Create high-quality export canvas
         const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = width;
-        exportCanvas.height = height;
+        const exportDpi = 2; // For høj kvalitet
+        exportCanvas.width = width * exportDpi;
+        exportCanvas.height = height * exportDpi;
         const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.scale(exportDpi, exportDpi);
         
         // Draw background
         if (!transparentBg.checked) {
@@ -484,32 +489,34 @@ document.addEventListener('DOMContentLoaded', function() {
             exportCtx.fillRect(0, 0, width, height);
         }
         
-        // Calculate scale factors
-        const contentWidth = canvas.width / scale;
-        const contentHeight = canvas.height / scale;
-        const exportScale = Math.min(
-            width / contentWidth,
-            height / contentHeight
-        );
+        // Calculate content bounds
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        images.forEach(img => {
+            minX = Math.min(minX, img.x);
+            minY = Math.min(minY, img.y);
+            maxX = Math.max(maxX, img.x + img.width);
+            maxY = Math.max(maxY, img.y + img.height + (img.mirrorOpacity > 0 ? img.height + img.mirrorDistance : 0));
+        });
         
-        // Find the primary image (number 1)
-        const primaryImage = images.find(img => img.number === 1);
-        let centerX = 0, centerY = 0;
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        const scaleX = width / contentWidth;
+        const scaleY = height / contentHeight;
+        const exportScale = Math.min(scaleX, scaleY) * 0.95; // 5% padding
         
-        if (primaryImage) {
-            centerX = (primaryImage.x + primaryImage.width/2) * exportScale - width/2;
-            centerY = (primaryImage.y + primaryImage.height/2) * exportScale - height/2;
-        }
+        // Center point
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
         
         // Draw all images with reflections
         images.sort((a, b) => a.number - b.number).forEach(img => {
-            // Calculate position relative to export canvas
-            let x = (img.x + offsetX/scale) * exportScale - centerX;
-            let y = (img.y + offsetY/scale) * exportScale - centerY;
+            // Calculate position
+            const x = (img.x - centerX) * exportScale + width/2;
+            const y = (img.y - centerY) * exportScale + height/2;
             const imgWidth = img.width * exportScale;
             const imgHeight = img.height * exportScale;
             
-            // Draw reflection FIRST (under main image)
+            // Draw reflection first (under main image)
             if (img.mirrorOpacity > 0) {
                 exportCtx.save();
                 exportCtx.globalAlpha = img.mirrorOpacity;
@@ -533,6 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Draw main image
             exportCtx.save();
             exportCtx.globalAlpha = img.opacity;
+            
             if (img.flipped) {
                 exportCtx.translate(x + imgWidth, y);
                 exportCtx.scale(-1, 1);
@@ -556,8 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
             a.download = `design-${new Date().getTime()}.png`;
             document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 'image/png');
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }, 'image/png', 1.0);
     }
 });
+```
