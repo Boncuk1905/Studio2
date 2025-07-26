@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM elements - TILFØJ KUN DE ELEMENTER DER FINDES I DIN HTML
+    // DOM elements
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d');
     const imageUpload = document.getElementById('imageUpload');
@@ -20,14 +20,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const imageNumberValue = document.getElementById('imageNumberValue');
     const flipBtn = document.getElementById('flipBtn');
     const centerBtn = document.getElementById('centerBtn');
-    const centerExportBtn = document.getElementById('centerExportBtn');
     const deleteBtn = document.getElementById('deleteBtn');
 
     // App state
     const state = {
         images: [],
         selectedImage: null,
-        hoveredImage: null,
         isDragging: false,
         isResizing: false,
         isPanning: false,
@@ -41,26 +39,19 @@ document.addEventListener('DOMContentLoaded', function() {
         offsetX: 0,
         offsetY: 0,
         startPanX: 0,
-        startPanY: 0,
-        grid: {
-            size: 20,
-            enabled: true,
-            color: 'rgba(0, 0, 0, 0.1)',
-            visible: true,
-            snapThreshold: 5
-        }
+        startPanY: 0
     };
 
     // Initialize the app
     function initialize() {
         if (!canvas) {
-            console.error('Canvas element ikke fundet');
+            console.error('Canvas element not found');
             return;
         }
-        
+
         resizeCanvasToContainer();
         setupEventListeners();
-        render();
+        renderLoop();
     }
 
     function resizeCanvasToContainer() {
@@ -69,16 +60,20 @@ document.addEventListener('DOMContentLoaded', function() {
         canvas.height = container.clientHeight;
     }
 
+    function renderLoop() {
+        render();
+        requestAnimationFrame(renderLoop);
+    }
+
     function render() {
         clearCanvas();
         drawBackground();
         
-        if (state.grid.visible && snapToGrid.checked) {
+        if (showGuides.checked) {
             drawGrid();
         }
 
         drawAllImages();
-        requestAnimationFrame(render);
     }
 
     function clearCanvas() {
@@ -93,11 +88,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawGrid() {
-        const gridSize = state.grid.size;
+        const gridSize = 20;
         const width = canvas.width;
         const height = canvas.height;
         
-        ctx.strokeStyle = state.grid.color;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
         ctx.lineWidth = 1;
         
         for (let x = 0; x <= width; x += gridSize) {
@@ -161,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        Array.from(files).forEach((file) => {
+        Array.from(files).forEach(file => {
             if (!file.type.match('image.*')) {
                 console.log('Ignorerer ikke-billede:', file.name);
                 return;
@@ -173,12 +168,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 img.onload = function() {
                     addImageToCanvas(img, file.name);
                 };
-                img.onerror = function() {
-                    console.error('Fejl ved indlæsning af billede:', file.name);
-                };
                 img.src = event.target.result;
             };
-            reader.onerror = () => console.error('Fil læsefejl');
             reader.readAsDataURL(file);
         });
     }
@@ -195,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
             scale: 1,
             opacity: 1,
             mirrorOpacity: 0.3,
-            mirrorDistance: 20,
+            mirrorDistance: parseInt(mirrorDistanceSlider.value),
             flipped: false,
             filename: filename,
             number: state.images.length + 1
@@ -213,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
             state.isPanning = true;
             state.startPanX = e.clientX;
             state.startPanY = e.clientY;
+            canvas.style.cursor = 'grabbing';
             return;
         }
 
@@ -258,8 +250,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const dx = pos.x - state.startX;
             const dy = pos.y - state.startY;
             
-            state.selectedImage.x = state.startLeft + dx;
-            state.selectedImage.y = state.startTop + dy;
+            if (snapToGrid.checked) {
+                state.selectedImage.x = snapToGridValue(state.startLeft + dx);
+                state.selectedImage.y = snapToGridValue(state.startTop + dy);
+            } else {
+                state.selectedImage.x = state.startLeft + dx;
+                state.selectedImage.y = state.startTop + dy;
+            }
             return;
         }
 
@@ -277,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
         state.isDragging = false;
         state.isResizing = false;
         state.isPanning = false;
+        canvas.style.cursor = 'default';
     }
 
     function getCanvasPosition(e) {
@@ -298,6 +296,11 @@ document.addEventListener('DOMContentLoaded', function() {
                pos.x <= img.x + img.width &&
                pos.y >= img.y + img.height - handleSize && 
                pos.y <= img.y + img.height;
+    }
+
+    function snapToGridValue(value) {
+        const gridSize = 20;
+        return Math.round(value / gridSize) * gridSize;
     }
 
     function selectImage(image) {
@@ -324,69 +327,119 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function setupEventListeners() {
         // File handling
-        if (imageUpload) {
-            imageUpload.addEventListener('change', handleImageUpload);
-        } else {
-            console.error('imageUpload element ikke fundet');
-        }
+        imageUpload.addEventListener('change', handleImageUpload);
         
-        // Buttons - TILFØJ KUN FOR DE KNAPPER DER FINDES
-        if (downloadBtn) downloadBtn.addEventListener('click', exportLayout);
-        if (flipBtn) flipBtn.addEventListener('click', flipImage);
-        if (centerBtn) centerBtn.addEventListener('click', centerImage);
-        if (deleteBtn) deleteBtn.addEventListener('click', deleteImage);
+        // Buttons
+        downloadBtn.addEventListener('click', exportLayout);
+        flipBtn.addEventListener('click', () => {
+            if (state.selectedImage) {
+                state.selectedImage.flipped = !state.selectedImage.flipped;
+            }
+        });
+        centerBtn.addEventListener('click', () => {
+            if (state.selectedImage) {
+                state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
+                state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
+            }
+        });
+        deleteBtn.addEventListener('click', () => {
+            if (state.selectedImage) {
+                state.images = state.images.filter(img => img !== state.selectedImage);
+                selectImage(null);
+            }
+        });
+        
+        // Sliders
+        scaleSlider.addEventListener('input', (e) => {
+            if (state.selectedImage) {
+                const scale = e.target.value / 100;
+                state.selectedImage.scale = scale;
+                state.selectedImage.width = state.selectedImage.originalWidth * scale;
+                state.selectedImage.height = state.selectedImage.originalHeight * scale;
+                scaleValue.textContent = e.target.value;
+            }
+        });
+        
+        mirrorOpacitySlider.addEventListener('input', (e) => {
+            if (state.selectedImage) {
+                state.selectedImage.mirrorOpacity = e.target.value / 100;
+                mirrorOpacityValue.textContent = e.target.value;
+            }
+        });
+        
+        mirrorDistanceSlider.addEventListener('input', (e) => {
+            if (state.selectedImage) {
+                state.selectedImage.mirrorDistance = parseInt(e.target.value);
+                mirrorDistanceValue.textContent = e.target.value;
+            }
+        });
+        
+        imageNumberInput.addEventListener('change', (e) => {
+            if (state.selectedImage) {
+                state.selectedImage.number = parseInt(e.target.value);
+                imageNumberValue.textContent = e.target.value;
+            }
+        });
         
         // Canvas interaction
-        if (canvas) {
-            canvas.addEventListener('mousedown', handleMouseDown);
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        }
+        canvas.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomIntensity = 0.1;
+            const wheelDelta = e.deltaY < 0 ? 1 : -1;
+            const zoomFactor = 1 + (wheelDelta * zoomIntensity);
+            applyZoom(zoomFactor, e.clientX, e.clientY);
+        }, { passive: false });
         
         // Window resize
-        window.addEventListener('resize', resizeCanvasToContainer);
+        window.addEventListener('resize', () => {
+            resizeCanvasToContainer();
+        });
     }
 
-    function flipImage() {
-        if (state.selectedImage) {
-            state.selectedImage.flipped = !state.selectedImage.flipped;
-        }
-    }
-
-    function centerImage() {
-        if (state.selectedImage) {
-            state.selectedImage.x = (canvas.width - state.selectedImage.width) / 2;
-            state.selectedImage.y = (canvas.height - state.selectedImage.height) / 2;
-        }
-    }
-
-    function deleteImage() {
-        if (state.selectedImage) {
-            state.images = state.images.filter(img => img !== state.selectedImage);
-            selectImage(null);
-        }
+    function applyZoom(zoomFactor, mouseX, mouseY) {
+        const newScale = state.scale * zoomFactor;
+        if (newScale < 0.1 || newScale > 10) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const focusX = mouseX - rect.left;
+        const focusY = mouseY - rect.top;
+        
+        state.offsetX = focusX - (focusX - state.offsetX) * zoomFactor;
+        state.offsetY = focusY - (focusY - state.offsetY) * zoomFactor;
+        
+        state.scale = newScale;
     }
 
     function exportLayout() {
         const exportCanvas = document.createElement('canvas');
-        const size = exportSize.value === 'auto' ? 
-            Math.max(canvas.width, canvas.height) : 
-            parseInt(exportSize.value.split('x')[0]);
+        let size, scale;
+        
+        if (exportSize.value === 'auto') {
+            size = Math.max(canvas.width, canvas.height);
+            scale = 1;
+        } else {
+            size = parseInt(exportSize.value.split('x')[0]);
+            scale = size / Math.max(canvas.width, canvas.height);
+        }
         
         exportCanvas.width = size;
         exportCanvas.height = size;
         const exportCtx = exportCanvas.getContext('2d');
         
+        // Draw background
         if (!transparentBg.checked) {
             exportCtx.fillStyle = bgColor.value;
             exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
         }
         
+        // Draw all images
         state.images.forEach(img => {
             exportCtx.save();
             exportCtx.globalAlpha = img.opacity;
             
-            const scale = size / Math.max(canvas.width, canvas.height);
             const x = (img.x * scale) + (size/2 - (canvas.width/2 * scale));
             const y = (img.y * scale) + (size/2 - (canvas.height/2 * scale));
             const width = img.width * scale;
@@ -403,6 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
             exportCtx.restore();
         });
         
+        // Trigger download
         const link = document.createElement('a');
         link.download = `design-${new Date().getTime()}.png`;
         link.href = exportCanvas.toDataURL('image/png');
