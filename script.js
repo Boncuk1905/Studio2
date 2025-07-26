@@ -1,6 +1,3 @@
-Her er den komplette rettede `script.js`-fil med en fuldstændig løsning på problemet med manglende spejlbilleder i eksporten:
-
-```javascript
 document.addEventListener('DOMContentLoaded', function() {
     // DOM elements
     const previewArea = document.getElementById('previewArea');
@@ -571,4 +568,3 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 'image/png', 1.0);
     }
 });
-```
