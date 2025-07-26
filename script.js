@@ -105,20 +105,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
   function render() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // Nulstil transformation
+    console.log("Render-loop kører"); // Vis at rendering sker
+    
     clearCanvas();
-     drawBackground();
-        
-        ctx.save();
-        applyCanvasTransformations();
-        
-        if (state.grid.visible && snapToGrid.checked) {
-            drawGrid();
-        }
-
-        drawAllImages();
-        ctx.restore();
+    drawBackground();
+    
+    ctx.save();
+    applyCanvasTransformations();
+    
+    if (state.grid.visible && snapToGrid.checked) {
+        drawGrid();
     }
+
+    console.log("Antal billeder at tegne:", state.images.length); // Debug antal billeder
+    drawAllImages();
+    ctx.restore();
+}
 
     function clearCanvas() {
         ctx.save();
@@ -181,14 +183,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-  function drawSingleImage(img) {
+ function drawSingleImage(img) {
+    console.log("Prøver at tegne billede:", img.filename, "X:", img.x, "Y:", img.y); // Debug position
+
     ctx.save();
     ctx.globalAlpha = img.opacity;
-    console.log('Rendering image at:', img.x, img.y, img.width, img.height);
-ctx.strokeStyle = 'red';
-ctx.strokeRect(img.x, img.y, img.width, img.height); // Tegn en rød ramme om billedet
-    // Anvend kun scale transformation
-    ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
     
     if (img.flipped) {
         ctx.translate(img.x + img.width, img.y);
@@ -197,6 +196,11 @@ ctx.strokeRect(img.x, img.y, img.width, img.height); // Tegn en rød ramme om bi
     } else {
         ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
     }
+    
+    // Tegn en rød ramme for at se om billedet er der (debug)
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(img.x, img.y, img.width, img.height);
     
     ctx.restore();
 }
@@ -298,9 +302,10 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
             number: state.images.length + 1
         };
 
-        state.images.push(newImage);
-        selectImage(newImage);
-    }
+          state.images.push(newImage);
+    console.log("Billede tilføjet til state:", newImage); // Vis det tilføjede billedobjekt
+    selectImage(newImage);
+}
 
     // =====================
     // SECTION 6: INTERACTION
@@ -419,13 +424,14 @@ console.log('Billede indlæst:', file.name, img.width, img.height);
     // =====================
     // SECTION 7: UTILITIES
     // =====================
-    function getCanvasPosition(e) {
+function getCanvasPosition(e) {
     const rect = canvas.getBoundingClientRect();
-    const scale = state.scale;
-    return {
-        x: (e.clientX - rect.left - state.offsetX) / scale,
-        y: (e.clientY - rect.top - state.offsetY) / scale
+    const pos = {
+        x: (e.clientX - rect.left - state.offsetX) / state.scale,
+        y: (e.clientY - rect.top - state.offsetY) / state.scale
     };
+    console.log("Museposition (canvas space):", pos.x, pos.y); // Debug museposition
+    return pos;
 }
 
     function isOverImage(pos, img) {
