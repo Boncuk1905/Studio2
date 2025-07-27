@@ -542,7 +542,6 @@ showMirror.addEventListener('change', function() {
         return;
     }
 
-    // Debug output
     console.log("=== EKSPORT DEBUG ===");
     console.log("Show Mirror:", showMirror.checked);
     console.log("Billedindstillinger:", state.images.map(img => ({
@@ -560,7 +559,7 @@ showMirror.addEventListener('change', function() {
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Beregn canvas størrelse
+    // Beregn canvas-størrelse med præcis spejlhøjde
     let bounds = {
         left: Infinity,
         right: -Infinity,
@@ -568,42 +567,38 @@ showMirror.addEventListener('change', function() {
         bottom: -Infinity
     };
 
-    // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
-    const mirrorExtra = (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0)
-        ? img.height + img.mirrorDistance
-        : 0;
+        let bottom = img.y + img.height;
 
-    const bottomWithMirror = img.y + img.height + mirrorExtra;
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+            const mirrorBottom = img.y + img.height + img.height + img.mirrorDistance;
+            bottom = Math.max(bottom, mirrorBottom);
+        }
 
-    bounds.left = Math.min(bounds.left, img.x);
-    bounds.right = Math.max(bounds.right, img.x + img.width);
-    bounds.top = Math.min(bounds.top, img.y);
-    bounds.bottom = Math.max(bounds.bottom, bottomWithMirror);
-});
+        bounds.left = Math.min(bounds.left, img.x);
+        bounds.right = Math.max(bounds.right, img.x + img.width);
+        bounds.top = Math.min(bounds.top, img.y);
+        bounds.bottom = Math.max(bounds.bottom, bottom);
+    });
 
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
-
-    // Tilføj padding
     const padding = 40;
+
     exportCanvas.width = contentWidth + padding * 2;
     exportCanvas.height = contentHeight + padding * 2;
 
-    // Tegn baggrund
     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
     }
 
-    // Tegn alle billeder
     state.images.forEach(img => {
         const x = padding + img.x - bounds.left;
         const y = padding + img.y - bounds.top;
         const width = img.width;
         const height = img.height;
 
-        // Tegn hovedbillede
         exportCtx.save();
         exportCtx.globalAlpha = img.opacity;
 
@@ -616,43 +611,36 @@ showMirror.addEventListener('change', function() {
         }
         exportCtx.restore();
 
-        // Tegn spejleffekt (kun hvis aktiveret)
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
             const mirrorHeight = img.mirrorDistance;
 
             exportCtx.save();
-
-            // 1. Tegn spejlbilledet (inkl. korrekt x-position)
-            exportCtx.setTransform(1, 0, 0, -1, x, mirrorY * 2);
             exportCtx.globalAlpha = img.mirrorOpacity;
-            exportCtx.drawImage(img.element, 0, y, width, height);
 
-            // 2. Tilføj fade-effekt
+            // Spejlbilledet
+            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2);
+            exportCtx.drawImage(img.element, x, -y - height, width, height);
+
+            // Fade effekt
             const gradient = exportCtx.createLinearGradient(
-                0, mirrorY - y,
-                0, mirrorY - y + mirrorHeight
+                x, mirrorY,
+                x, mirrorY + mirrorHeight
             );
             gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
             gradient.addColorStop(1, 'rgba(255,255,255,0)');
 
             exportCtx.globalCompositeOperation = 'destination-out';
             exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(0, mirrorY - y, width, mirrorHeight);
+            exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
 
             exportCtx.restore();
-
-            // 3. Gendan standardindstillinger
-            exportCtx.setTransform(1, 0, 0, 1, 0, 0);
             exportCtx.globalCompositeOperation = 'source-over';
         }
     });
 
-    // Download
     try {
-        const timestamp = new Date().toISOString()
-            .replace(/[:.]/g, '-')
-            .replace('T', '_');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_');
         const filename = `design_${timestamp}.png`;
 
         const link = document.createElement('a');
