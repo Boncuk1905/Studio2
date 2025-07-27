@@ -475,44 +475,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function exportLayout() {
-        const exportCanvas = document.createElement('canvas');
-        let size, scale;
-        
-        if (exportSize.value === 'auto') {
-            // Calculate content bounds
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            
-            state.images.forEach(img => {
-                minX = Math.min(minX, img.x);
-                maxX = Math.max(maxX, img.x + img.width);
-                minY = Math.min(minY, img.y);
-                maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
-            });
-            
-            const contentWidth = maxX - minX;
-            const contentHeight = maxY - minY;
-            const padding = 20; // Add some padding
-            
-            size = Math.max(contentWidth, contentHeight) + padding * 2;
-            scale = 1;
-        } else {
-            size = parseInt(exportSize.value.split('x')[0]);
-            scale = size / Math.max(canvas.width, canvas.height);
-        }
-        
-        exportCanvas.width = size;
-        exportCanvas.height = size;
-        const exportCtx = exportCanvas.getContext('2d');
-        
-        // Draw background
-        if (!transparentBg.checked) {
-            exportCtx.fillStyle = bgColor.value;
-            exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        }
-        
-        // Find center of all content
+   function exportLayout() {
+    const exportCanvas = document.createElement('canvas');
+    let size, scale;
+
+    // Brug fixed størrelse eller auto-beregning
+    if (exportSize.value === 'auto') {
+        // Beregn content bounds
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        
         state.images.forEach(img => {
             minX = Math.min(minX, img.x);
             maxX = Math.max(maxX, img.x + img.width);
@@ -520,61 +491,112 @@ document.addEventListener('DOMContentLoaded', function() {
             maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
         });
         
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-        
-        // Draw all images centered
-        state.images.forEach(img => {
-            exportCtx.save();
-            exportCtx.globalAlpha = img.opacity;
-            
-            // Calculate centered position
-            const x = (img.x - centerX) * scale + size / 2;
-            const y = (img.y - centerY) * scale + size / 2;
-            const width = img.width * scale;
-            const height = img.height * scale;
-            
-            if (img.flipped) {
-                exportCtx.translate(x + width, y);
-                exportCtx.scale(-1, 1);
-                exportCtx.drawImage(img.element, 0, 0, width, height);
-            } else {
-                exportCtx.drawImage(img.element, x, y, width, height);
-            }
-            
-            // Draw mirror effect if enabled
-            if (showMirror.checked && img.mirrorOpacity > 0) {
-                const mirrorY = y + height;
-                
-                exportCtx.save();
-                exportCtx.globalAlpha = img.mirrorOpacity;
-                exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
-                exportCtx.scale(1, -1);
-                exportCtx.drawImage(img.element, x, y, width, height);
-                exportCtx.restore();
-                
-                // Add fade effect
-                const gradient = exportCtx.createLinearGradient(
-                    x, mirrorY,
-                    x, mirrorY + img.mirrorDistance * scale
-                );
-                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-                gradient.addColorStop(1, 'rgba(255,255,255,0)');
-                
-                exportCtx.globalCompositeOperation = 'destination-out';
-                exportCtx.fillStyle = gradient;
-                exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
-            }
-            
-            exportCtx.restore();
-        });
-        
-        // Trigger download
-        const link = document.createElement('a');
-        link.download = `design-${new Date().getTime()}.png`;
-        link.href = exportCanvas.toDataURL('image/png');
-        link.click();
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        size = Math.max(contentWidth, contentHeight) * 1.2; // 20% padding
+        scale = 1;
+    } else {
+        size = parseInt(exportSize.value.split('x')[0]);
+        scale = size / Math.max(canvas.width, canvas.height);
     }
+
+    exportCanvas.width = size;
+    exportCanvas.height = size;
+    const exportCtx = exportCanvas.getContext('2d');
+
+    // Tegn baggrund
+    if (!transparentBg.checked) {
+        exportCtx.fillStyle = bgColor.value;
+        exportCtx.fillRect(0, 0, size, size);
+    }
+
+    // CENTRERINGSLØSNING:
+    // Beregn center for alle elementer
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    state.images.forEach(img => {
+        minX = Math.min(minX, img.x);
+        maxX = Math.max(maxX, img.x + img.width);
+        minY = Math.min(minY, img.y);
+        maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
+    });
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    // Tegn midterlinje og cirkel FØRST (bag alle billeder)
+    exportCtx.save();
+    exportCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+    exportCtx.lineWidth = 2;
+    
+    // Vertikal midterlinje
+    exportCtx.beginPath();
+    exportCtx.moveTo(size/2, 0);
+    exportCtx.lineTo(size/2, size);
+    exportCtx.stroke();
+    
+    // Horisontal midterlinje
+    exportCtx.beginPath();
+    exportCtx.moveTo(0, size/2);
+    exportCtx.lineTo(size, size/2);
+    exportCtx.stroke();
+    
+    // Cirkel i midten
+    exportCtx.beginPath();
+    exportCtx.arc(size/2, size/2, size * 0.1, 0, Math.PI * 2);
+    exportCtx.stroke();
+    exportCtx.restore();
+
+    // Tegn alle billeder centreret
+    state.images.forEach(img => {
+        exportCtx.save();
+        exportCtx.globalAlpha = img.opacity;
+
+        // Beregn position i forhold til center
+        const x = (img.x - centerX) * scale + size / 2;
+        const y = (img.y - centerY) * scale + size / 2;
+        const width = img.width * scale;
+        const height = img.height * scale;
+
+        if (img.flipped) {
+            exportCtx.translate(x + width, y);
+            exportCtx.scale(-1, 1);
+            exportCtx.drawImage(img.element, 0, 0, width, height);
+        } else {
+            exportCtx.drawImage(img.element, x, y, width, height);
+        }
+
+        // Tegn spejleffekt hvis aktiveret
+        if (showMirror.checked && img.mirrorOpacity > 0) {
+            const mirrorY = y + height;
+            
+            exportCtx.save();
+            exportCtx.globalAlpha = img.mirrorOpacity;
+            exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
+            exportCtx.scale(1, -1);
+            exportCtx.drawImage(img.element, x, y, width, height);
+            exportCtx.restore();
+
+            const gradient = exportCtx.createLinearGradient(
+                x, mirrorY,
+                x, mirrorY + img.mirrorDistance * scale
+            );
+            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            exportCtx.globalCompositeOperation = 'destination-out';
+            exportCtx.fillStyle = gradient;
+            exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
+        }
+        
+        exportCtx.restore();
+    });
+
+    // Download
+    const link = document.createElement('a');
+    link.download = `design-${new Date().getTime()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+}
 
     // Initialize the app
     initialize();
