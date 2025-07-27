@@ -537,18 +537,31 @@ showMirror.addEventListener('change', function() {
         });
     }
 
-    function exportLayout() {
+   function exportLayout() {
     if (state.images.length === 0) {
         alert('Ingen billeder at eksportere!');
         return;
     }
 
-    // Opret export canvas
+    // Debug output
+    console.log("=== EKSPORT DEBUG ===");
+    console.log("Show Mirror:", showMirror.checked);
+    console.log("Billedindstillinger:", state.images.map(img => ({
+        navn: img.filename,
+        spejl: {
+            opacity: img.mirrorOpacity,
+            distance: img.mirrorDistance,
+            aktiv: showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0
+        },
+        position: `(${img.x},${img.y})`,
+        størrelse: `${img.width}x${img.height}`
+    })));
+
     const exportCanvas = document.createElement('canvas');
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Beregn canvas størrelse baseret på alle billeder + spejleffekt
+    // Beregn canvas størrelse
     let bounds = {
         left: Infinity,
         right: -Infinity,
@@ -556,23 +569,22 @@ showMirror.addEventListener('change', function() {
         bottom: -Infinity
     };
 
+    // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
-        // Inkluder spejlhøjde i beregningen hvis spejling er aktiveret
-        const imgBottom = img.y + img.height + 
-                        (showMirror.checked ? img.mirrorDistance : 0);
+        const bottomWithMirror = img.y + img.height + 
+                              (showMirror.checked ? img.mirrorDistance : 0);
         
         bounds.left = Math.min(bounds.left, img.x);
         bounds.right = Math.max(bounds.right, img.x + img.width);
         bounds.top = Math.min(bounds.top, img.y);
-        bounds.bottom = Math.max(bounds.bottom, imgBottom);
+        bounds.bottom = Math.max(bounds.bottom, bottomWithMirror);
     });
 
-    // Tilføj padding
-    const padding = 40;
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
     
-    // Sæt canvas størrelse
+    // Tilføj padding
+    const padding = 40;
     exportCanvas.width = contentWidth + padding * 2;
     exportCanvas.height = contentHeight + padding * 2;
 
@@ -584,7 +596,6 @@ showMirror.addEventListener('change', function() {
 
     // Tegn alle billeder
     state.images.forEach(img => {
-        // Beregn position med padding
         const x = padding + img.x - bounds.left;
         const y = padding + img.y - bounds.top;
         const width = img.width;
@@ -610,17 +621,12 @@ showMirror.addEventListener('change', function() {
             
             exportCtx.save();
             
-            // 1. Opret clipping område
-            exportCtx.beginPath();
-            exportCtx.rect(x, mirrorY, width, mirrorHeight);
-            exportCtx.clip();
-            
-            // 2. Tegn spejlbilledet
+            // 1. Tegn spejlbilledet
             exportCtx.globalAlpha = img.mirrorOpacity;
             exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2);
             exportCtx.drawImage(img.element, x, -y - height, width, height);
             
-            // 3. Tilføj fade-effekt
+            // 2. Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + mirrorHeight
@@ -633,15 +639,23 @@ showMirror.addEventListener('change', function() {
             exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
             
             exportCtx.restore();
+            
+            // 3. Gendan standardindstillinger
+            exportCtx.globalCompositeOperation = 'source-over';
         }
     });
 
-    // Download billedet
-    const link = document.createElement('a');
-    link.download = 'design_' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
-    link.href = exportCanvas.toDataURL('image/png');
-    link.click();
-}
+    // Download
+    try {
+        const timestamp = new Date().toISOString()
+            .replace(/[:.]/g, '-')
+            .replace('T', '_');
+        const filename = `design_${timestamp}.png`;
+        
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = exportCanvas.toDataURL('image/png', 1.0);
+        link.click();
         
         console.log("Eksport fuldført:", filename);
     } catch (error) {
