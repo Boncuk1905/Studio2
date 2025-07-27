@@ -139,54 +139,54 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
         ctx.globalAlpha = img.opacity;
-        
+
         if (img.flipped) {
-            ctx.translate(img.x + img.width, img.y);
-            ctx.scale(-1, 1);
-            ctx.drawImage(img.element, 0, 0, img.width, img.height);
-        } else {
-            ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
-        }
-        
-        // Draw mirror effect if enabled
-        if (showMirror.checked && img.mirrorOpacity > 0) {
-            drawMirrorEffect(img);
-        }
-        
-        ctx.restore();
+        ctx.translate(img.x + img.width, img.y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img.element, 0, 0, img.width, img.height);
+    } else {
+        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
     }
 
-    function drawMirrorEffect(img) {
-        ctx.save();
-        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
-        
-        // Create clipping area
-        ctx.beginPath();
-        ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        ctx.clip();
-        
-        // Draw mirrored image
-        ctx.save();
-        ctx.globalAlpha = img.mirrorOpacity;
-        ctx.translate(0, img.y + img.height * 2 + img.mirrorDistance);
-        ctx.scale(1, -1);
-        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
-        ctx.restore();
-        
-        // Apply fade effect
-        const gradient = ctx.createLinearGradient(
-            img.x, img.y + img.height,
-            img.x, img.y + img.height + img.mirrorDistance
-        );
-        gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        
-        ctx.restore();
+    // Tegn spejleffekt hvis aktiveret
+    if (showMirror.checked && img.mirrorOpacity > 0) {
+        drawMirrorEffect(img);
     }
+    
+    ctx.restore();
+}
+
+    function drawMirrorEffect(img) {
+    ctx.save();
+    ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
+    
+    // Opret clipping område
+    ctx.beginPath();
+    ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+    ctx.clip();
+    
+    // Tegn spejlet billede
+    ctx.save();
+    ctx.translate(0, img.y + img.height * 2 + img.mirrorDistance);
+    ctx.scale(1, -1);
+    ctx.globalAlpha = img.mirrorOpacity;
+    ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
+    ctx.restore();
+    
+    // Tilføj fade effekt
+    const gradient = ctx.createLinearGradient(
+        img.x, img.y + img.height,
+        img.x, img.y + img.height + img.mirrorDistance
+    );
+    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+    
+    ctx.restore();
+}
 
     function drawImageSelection(img) {
         ctx.save();
@@ -566,27 +566,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Tegn spejleffekt hvis aktiveret
-        if (showMirror.checked && img.mirrorOpacity > 0) {
-            const mirrorY = y + height;
-            
-            exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
-            exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
-            exportCtx.scale(1, -1);
-            exportCtx.drawImage(img.element, x, y, width, height);
-            exportCtx.restore();
-
-            const gradient = exportCtx.createLinearGradient(
-                x, mirrorY,
-                x, mirrorY + img.mirrorDistance * scale
-            );
-            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
-            
-            exportCtx.globalCompositeOperation = 'destination-out';
-            exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
-        }
+      if (showMirror.checked && img.mirrorOpacity > 0) {
+    const mirrorY = y + height;
+    
+    exportCtx.save();
+    // Brug nøjagtig samme transform-logik som i preview
+    exportCtx.beginPath();
+    exportCtx.rect(x, mirrorY, width, img.mirrorDistance * scale);
+    exportCtx.clip();
+    
+    exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
+    exportCtx.scale(1, -1);
+    exportCtx.globalAlpha = img.mirrorOpacity;
+    exportCtx.drawImage(img.element, x, y, width, height);
+    exportCtx.restore();
+    
+    // Samme gradient-effekt
+    const gradient = exportCtx.createLinearGradient(
+        x, mirrorY,
+        x, mirrorY + img.mirrorDistance * scale
+    );
+    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    
+    exportCtx.globalCompositeOperation = 'destination-out';
+    exportCtx.fillStyle = gradient;
+    exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
+}
         
         exportCtx.restore();
     });
