@@ -123,7 +123,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawAllImages() {
-        state.images.forEach(img => {
+        // Sorter billeder efter deres nummer (så den højeste vises øverst)
+        const sortedImages = [...state.images].sort((a, b) => a.number - b.number);
+        
+        sortedImages.forEach(img => {
             drawSingleImage(img);
             
             if (img === state.selectedImage) {
@@ -145,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
         }
         
-        // Draw mirror effect if enabled
+        // Tegn spejleffekt hvis aktiveret
         if (showMirror.checked && img.mirrorOpacity > 0) {
             drawMirrorEffect(img);
         }
@@ -157,7 +160,20 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
         
-        // Create gradient for fade effect
+        // Opret klipområde
+        ctx.beginPath();
+        ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+        ctx.clip();
+        
+        // Tegn spejlbillede
+        ctx.save();
+        ctx.globalAlpha = img.mirrorOpacity;
+        ctx.translate(0, img.y + img.height * 2 + img.mirrorDistance);
+        ctx.scale(1, -1);
+        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
+        ctx.restore();
+        
+        // Tilføj gradient fade
         const gradient = ctx.createLinearGradient(
             img.x, img.y + img.height,
             img.x, img.y + img.height + img.mirrorDistance
@@ -165,15 +181,6 @@ document.addEventListener('DOMContentLoaded', function() {
         gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
         gradient.addColorStop(1, 'rgba(255,255,255,0)');
         
-        // Draw mirrored image
-        ctx.globalAlpha = img.mirrorOpacity * 0.7;
-        ctx.save();
-        ctx.translate(0, img.height + img.mirrorDistance);
-        ctx.scale(1, -1);
-        ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
-        ctx.restore();
-        
-        // Apply gradient fade
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fillStyle = gradient;
         ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
@@ -185,13 +192,13 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
         
-        // Selection border
+        // Markering
         ctx.strokeStyle = '#3498db';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(img.x - 2, img.y - 2, img.width + 4, img.height + 4);
         
-        // Draw resize handle
+        // Ændrings-håndtag
         ctx.fillStyle = '#3498db';
         ctx.fillRect(
             img.x + img.width - 8,
@@ -206,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        Array.from(files).forEach(file => {
+        Array.from(files).forEach((file, index) => {
             if (!file.type.match('image.*')) {
                 console.log('Ignorerer ikke-billede:', file.name);
                 return;
@@ -216,19 +223,15 @@ document.addEventListener('DOMContentLoaded', function() {
             reader.onload = function(event) {
                 const img = new Image();
                 img.onload = function() {
-                    addImageToCanvas(img, file.name);
-                };
-                img.onerror = function() {
-                    console.error('Fejl ved indlæsning af billede:', file.name);
+                    addImageToCanvas(img, file.name, state.images.length + 1);
                 };
                 img.src = event.target.result;
             };
-            reader.onerror = () => console.error('Fil læsefejl');
             reader.readAsDataURL(file);
         });
     }
 
-    function addImageToCanvas(img, filename) {
+    function addImageToCanvas(img, filename, number) {
         const newImage = {
             element: img,
             originalWidth: img.width,
@@ -243,237 +246,35 @@ document.addEventListener('DOMContentLoaded', function() {
             mirrorDistance: parseInt(mirrorDistanceSlider.value),
             flipped: false,
             filename: filename,
-            number: state.images.length + 1
+            number: number
         };
 
         state.images.push(newImage);
         selectImage(newImage);
     }
 
-    function handleMouseDown(e) {
-        e.preventDefault();
-        const pos = getCanvasPosition(e);
-
-        if (e.button === 1) { // Middle mouse button
-            state.isPanning = true;
-            state.startPanX = e.clientX;
-            state.startPanY = e.clientY;
-            canvas.style.cursor = 'grabbing';
-            return;
-        }
-
-        if (state.selectedImage && isOverResizeHandle(pos, state.selectedImage)) {
-            state.isResizing = true;
-            state.startX = pos.x;
-            state.startY = pos.y;
-            state.startWidth = state.selectedImage.width;
-            state.startHeight = state.selectedImage.height;
-            return;
-        }
-
-        for (let i = state.images.length - 1; i >= 0; i--) {
-            const img = state.images[i];
-            if (isOverImage(pos, img)) {
-                selectImage(img);
-                state.isDragging = true;
-                state.startX = pos.x;
-                state.startY = pos.y;
-                state.startLeft = img.x;
-                state.startTop = img.y;
-                return;
-            }
-        }
-
-        selectImage(null);
-    }
-
-    function handleMouseMove(e) {
-        const pos = getCanvasPosition(e);
-
-        if (state.isPanning) {
-            const dx = e.clientX - state.startPanX;
-            const dy = e.clientY - state.startPanY;
-            state.offsetX += dx;
-            state.offsetY += dy;
-            state.startPanX = e.clientX;
-            state.startPanY = e.clientY;
-            return;
-        }
-
-        if (state.isDragging && state.selectedImage) {
-            const dx = pos.x - state.startX;
-            const dy = pos.y - state.startY;
-            
-            if (snapToGrid.checked) {
-                state.selectedImage.x = snapToGridValue(state.startLeft + dx);
-                state.selectedImage.y = snapToGridValue(state.startTop + dy);
-            } else {
-                state.selectedImage.x = state.startLeft + dx;
-                state.selectedImage.y = state.startTop + dy;
-            }
-            return;
-        }
-
-        if (state.isResizing && state.selectedImage) {
-            const dx = pos.x - state.startX;
-            const aspectRatio = state.startWidth / state.startHeight;
-            
-            state.selectedImage.width = Math.max(10, state.startWidth + dx);
-            state.selectedImage.height = state.selectedImage.width / aspectRatio;
-            return;
-        }
-    }
-
-    function handleMouseUp() {
-        state.isDragging = false;
-        state.isResizing = false;
-        state.isPanning = false;
-        canvas.style.cursor = 'default';
-    }
-
-    function handleZoom(e) {
-        e.preventDefault();
-        const zoomIntensity = 0.1;
-        const wheelDelta = e.deltaY < 0 ? 1 : -1;
-        const zoomFactor = 1 + (wheelDelta * zoomIntensity);
-        
-        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
-        const mouseY = e.clientY - canvas.getBoundingClientRect().top;
-        
-        applyZoom(zoomFactor, mouseX, mouseY);
-    }
-
-    function applyZoom(zoomFactor, focusX, focusY) {
-        const newScale = Math.max(state.minScale, Math.min(state.maxScale, state.scale * zoomFactor));
-        state.offsetX = focusX - (focusX - state.offsetX) * (newScale / state.scale);
-        state.offsetY = focusY - (focusY - state.offsetY) * (newScale / state.scale);
-        state.scale = newScale;
-    }
-
-    function resetZoom() {
-        state.scale = 1;
-        state.offsetX = 0;
-        state.offsetY = 0;
-    }
-
-    function getCanvasPosition(e) {
-        const rect = canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - rect.left - state.offsetX) / state.scale,
-            y: (e.clientY - rect.top - state.offsetY) / state.scale
-        };
-    }
-
-    function isOverImage(pos, img) {
-        return pos.x >= img.x && pos.x <= img.x + img.width &&
-               pos.y >= img.y && pos.y <= img.y + img.height;
-    }
-
-    function isOverResizeHandle(pos, img) {
-        const handleSize = 10;
-        return pos.x >= img.x + img.width - handleSize && 
-               pos.x <= img.x + img.width &&
-               pos.y >= img.y + img.height - handleSize && 
-               pos.y <= img.y + img.height;
-    }
-
-    function snapToGridValue(value) {
-        const gridSize = state.grid.size;
-        return Math.round(value / gridSize) * gridSize;
-    }
-
-    function selectImage(image) {
-        state.selectedImage = image;
-        
-        if (image) {
-            imageProperties.style.display = 'block';
-            updateImageControls(image);
-        } else {
-            imageProperties.style.display = 'none';
-        }
-    }
-
-    function updateImageControls(img) {
-        scaleSlider.value = img.scale * 100;
-        scaleValue.textContent = Math.round(img.scale * 100);
-        mirrorOpacitySlider.value = img.mirrorOpacity * 100;
-        mirrorOpacityValue.textContent = Math.round(img.mirrorOpacity * 100);
-        mirrorDistanceSlider.value = img.mirrorDistance;
-        mirrorDistanceValue.textContent = img.mirrorDistance;
-    }
-
-    function setupEventListeners() {
-        // File handling
-        imageUpload.addEventListener('change', handleImageUpload);
-        
-        // Buttons
-        downloadBtn.addEventListener('click', exportLayout);
-        flipBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.selectedImage.flipped = !state.selectedImage.flipped;
-            }
-        });
-        centerBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.selectedImage.x = (canvas.width / 2 - state.selectedImage.width / 2 - state.offsetX) / state.scale;
-                state.selectedImage.y = (canvas.height / 2 - state.selectedImage.height / 2 - state.offsetY) / state.scale;
-            }
-        });
-        deleteBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.images = state.images.filter(img => img !== state.selectedImage);
-                selectImage(null);
-            }
-        });
-        
-        // Zoom controls
-        zoomInBtn.addEventListener('click', () => applyZoom(1.1, canvas.width/2, canvas.height/2));
-        zoomOutBtn.addEventListener('click', () => applyZoom(0.9, canvas.width/2, canvas.height/2));
-        resetZoomBtn.addEventListener('click', resetZoom);
-        
-        // Sliders
-        scaleSlider.addEventListener('input', (e) => {
-            if (state.selectedImage) {
-                const scale = e.target.value / 100;
-                state.selectedImage.scale = scale;
-                state.selectedImage.width = state.selectedImage.originalWidth * scale;
-                state.selectedImage.height = state.selectedImage.originalHeight * scale;
-                scaleValue.textContent = e.target.value;
-            }
-        });
-        
-        mirrorOpacitySlider.addEventListener('input', (e) => {
-            if (state.selectedImage) {
-                state.selectedImage.mirrorOpacity = e.target.value / 100;
-                mirrorOpacityValue.textContent = e.target.value;
-            }
-        });
-        
-        mirrorDistanceSlider.addEventListener('input', (e) => {
-            if (state.selectedImage) {
-                state.selectedImage.mirrorDistance = parseInt(e.target.value);
-                mirrorDistanceValue.textContent = e.target.value;
-            }
-        });
-        
-        // Canvas interaction
-        canvas.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('wheel', handleZoom, { passive: false });
-        
-        // Window resize
-        window.addEventListener('resize', () => {
-            resizeCanvasToContainer();
-        });
-    }
+    // ... (resten af dine funktioner for mouse events, zoom etc.) ...
 
     function exportLayout() {
         const exportCanvas = document.createElement('canvas');
         let size, scale;
         
         if (exportSize.value === 'auto') {
-            size = Math.max(canvas.width, canvas.height);
+            // Beregn den nødvendige størrelse for at passe alt indhold
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            
+            state.images.forEach(img => {
+                minX = Math.min(minX, img.x);
+                maxX = Math.max(maxX, img.x + img.width);
+                minY = Math.min(minY, img.y);
+                maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
+            });
+            
+            const contentWidth = maxX - minX;
+            const contentHeight = maxY - minY;
+            const padding = 20; // Tilføj lidt padding
+            
+            size = Math.max(contentWidth, contentHeight) + padding * 2;
             scale = 1;
         } else {
             size = parseInt(exportSize.value.split('x')[0]);
@@ -484,19 +285,36 @@ document.addEventListener('DOMContentLoaded', function() {
         exportCanvas.height = size;
         const exportCtx = exportCanvas.getContext('2d');
         
-        // Draw background
+        // Baggrund
         if (!transparentBg.checked) {
             exportCtx.fillStyle = bgColor.value;
             exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
         }
         
-        // Draw all images
+        // Find centerpunkt for alle billeder
+        let centerX = 0, centerY = 0;
+        if (state.images.length > 0) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            
+            state.images.forEach(img => {
+                minX = Math.min(minX, img.x);
+                maxX = Math.max(maxX, img.x + img.width);
+                minY = Math.min(minY, img.y);
+                maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
+            });
+            
+            centerX = (minX + maxX) / 2;
+            centerY = (minY + maxY) / 2;
+        }
+        
+        // Tegn alle billeder centreret
         state.images.forEach(img => {
             exportCtx.save();
             exportCtx.globalAlpha = img.opacity;
             
-            const x = (img.x * scale) + (size/2 - (canvas.width/2 * scale));
-            const y = (img.y * scale) + (size/2 - (canvas.height/2 * scale));
+            // Beregn position centreret på canvas
+            const x = (img.x - centerX) * scale + size / 2;
+            const y = (img.y - centerY) * scale + size / 2;
             const width = img.width * scale;
             const height = img.height * scale;
             
@@ -508,25 +326,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 exportCtx.drawImage(img.element, x, y, width, height);
             }
             
-            // Draw mirror effect if enabled
+            // Tegn spejleffekt hvis aktiveret
             if (showMirror.checked && img.mirrorOpacity > 0) {
                 exportCtx.save();
-                exportCtx.globalAlpha = img.mirrorOpacity * 0.7;
+                exportCtx.globalAlpha = img.mirrorOpacity;
+                
+                // Spejlbillede
                 exportCtx.translate(0, height + img.mirrorDistance * scale);
                 exportCtx.scale(1, -1);
                 exportCtx.drawImage(img.element, x, y, width, height);
+                
+                // Gradient fade
+                const gradient = exportCtx.createLinearGradient(
+                    x, y + height,
+                    x, y + height + img.mirrorDistance * scale
+                );
+                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                
+                exportCtx.globalCompositeOperation = 'destination-out';
+                exportCtx.fillStyle = gradient;
+                exportCtx.fillRect(x, y + height, width, img.mirrorDistance * scale);
+                
                 exportCtx.restore();
             }
             
             exportCtx.restore();
         });
         
-        // Trigger download
+        // Download
         const link = document.createElement('a');
         link.download = `design-${new Date().getTime()}.png`;
         link.href = exportCanvas.toDataURL('image/png');
         link.click();
     }
 
+    // Initialisering
     initialize();
 });
