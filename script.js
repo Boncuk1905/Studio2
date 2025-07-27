@@ -598,7 +598,7 @@ showMirror.addEventListener('change', function() {
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Tegn baggrund
+    // Tegn baggrund (hvis ikke transparent)
     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, size, size);
@@ -664,27 +664,6 @@ showMirror.addEventListener('change', function() {
             exportCtx.globalCompositeOperation = 'source-over';
         }
     });
-
-    // Tilføj tekst (eksempel)
-    exportCtx.save();
-    exportCtx.font = 'bold 24px Arial';
-    exportCtx.fillStyle = '#000000';
-    exportCtx.textAlign = 'center';
-    
-    const textLines = [
-        "TRIXIE",
-        "GEFLÜGEL",
-        "CRÈME",
-        "Poultry Pate",
-        "Pâté de volaille",
-        "Pâté di pollo"
-    ];
-    
-    const textYStart = size - padding - (textLines.length * 30);
-    textLines.forEach((line, i) => {
-        exportCtx.fillText(line, size/2, textYStart + (i * 30));
-    });
-    exportCtx.restore();
 
     // Download
     try {
