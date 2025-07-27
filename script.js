@@ -570,14 +570,17 @@ showMirror.addEventListener('change', function() {
 
     // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
-        const bottomWithMirror = img.y + img.height + 
-            (showMirror.checked ? img.mirrorDistance : 0);
+    const mirrorExtra = (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0)
+        ? img.height + img.mirrorDistance
+        : 0;
 
-        bounds.left = Math.min(bounds.left, img.x);
-        bounds.right = Math.max(bounds.right, img.x + img.width);
-        bounds.top = Math.min(bounds.top, img.y);
-        bounds.bottom = Math.max(bounds.bottom, bottomWithMirror);
-    });
+    const bottomWithMirror = img.y + img.height + mirrorExtra;
+
+    bounds.left = Math.min(bounds.left, img.x);
+    bounds.right = Math.max(bounds.right, img.x + img.width);
+    bounds.top = Math.min(bounds.top, img.y);
+    bounds.bottom = Math.max(bounds.bottom, bottomWithMirror);
+});
 
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
