@@ -85,6 +85,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (showGuides.checked) {
             drawGrid();
         }
+        if (state.temporaryMarker) {
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, canvas.height/2, 10, 0, Math.PI*2);
+    ctx.fillStyle = 'red';
+    ctx.fill();
+    
+    // Fjern markøren efter 1 sekund
+    setTimeout(() => {
+        state.temporaryMarker = false;
+    }, 1000);
+}
 
         drawAllImages();
     }
@@ -422,11 +433,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         centerBtn.addEventListener('click', () => {
-            if (state.selectedImage) {
-                state.selectedImage.x = (canvas.width / 2 - state.selectedImage.width / 2 - state.offsetX) / state.scale;
-                state.selectedImage.y = (canvas.height / 2 - state.selectedImage.height / 2 - state.offsetY) / state.scale;
-            }
-        });
+    if (state.selectedImage) {
+        // Center i forhold til canvas midten (inkl. offset og zoom)
+        const canvasCenterX = (canvas.width / 2 - state.offsetX) / state.scale;
+        const canvasCenterY = (canvas.height / 2 - state.offsetY) / state.scale;
+        
+        // Juster billedposition til centrum
+        state.selectedImage.x = canvasCenterX - state.selectedImage.width / 2;
+        state.selectedImage.y = canvasCenterY - state.selectedImage.height / 2;
+        
+        // Hvis snapToGrid er aktiveret
+        if (snapToGrid.checked) {
+            state.selectedImage.x = snapToGridValue(state.selectedImage.x);
+            state.selectedImage.y = snapToGridValue(state.selectedImage.y);
+        }
+    }
+});
         deleteBtn.addEventListener('click', () => {
             if (state.selectedImage) {
                 state.images = state.images.filter(img => img !== state.selectedImage);
@@ -480,7 +502,9 @@ function exportLayout() {
     const exportCanvas = document.createElement('canvas');
     let size, scale;
 
+    // Bestem størrelse baseret på indstillinger
     if (exportSize.value === 'auto') {
+        // Beregn automatisk størrelse baseret på indhold
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         
         state.images.forEach(img => {
@@ -492,9 +516,10 @@ function exportLayout() {
         
         const contentWidth = maxX - minX;
         const contentHeight = maxY - minY;
-        size = Math.max(contentWidth, contentHeight) * 1.2;
+        size = Math.max(contentWidth, contentHeight) * 1.2; // 20% padding
         scale = 1;
     } else {
+        // Brug brugerdefineret størrelse
         size = parseInt(exportSize.value.split('x')[0]);
         scale = size / Math.max(canvas.width, canvas.height);
     }
@@ -503,13 +528,18 @@ function exportLayout() {
     exportCanvas.height = size;
     const exportCtx = exportCanvas.getContext('2d');
 
-    // Tegn baggrund (kun hvis ikke transparent)
-     if (!transparentBg.checked) {
+    // Tegn baggrund (hvis ikke transparent)
+    if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, size, size);
     }
 
-    // TEGN GUIDES HVIS AKTIVERET (nye linjer)
+    // CENTRERINGSLOGIK
+    const centerX = size / 2;
+    const centerY = size / 2;
+    const circleRadius = size * 0.1; // 10% af canvas størrelse
+
+    // Tegn guides (hvis aktiveret)
     if (state.showGuidesInExport) {
         exportCtx.save();
         exportCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
@@ -517,63 +547,58 @@ function exportLayout() {
         
         // Vertikal midterlinje
         exportCtx.beginPath();
-        exportCtx.moveTo(size/2, 0);
-        exportCtx.lineTo(size/2, size);
+        exportCtx.moveTo(centerX, 0);
+        exportCtx.lineTo(centerX, size);
         exportCtx.stroke();
         
         // Horisontal midterlinje
         exportCtx.beginPath();
-        exportCtx.moveTo(0, size/2);
-        exportCtx.lineTo(size, size/2);
+        exportCtx.moveTo(0, centerY);
+        exportCtx.lineTo(size, centerY);
         exportCtx.stroke();
         
-        // Cirkel i midten
+        // Cirkel
         exportCtx.beginPath();
-        exportCtx.arc(size/2, size/2, size * 0.1, 0, Math.PI * 2);
+        exportCtx.arc(centerX, centerY, circleRadius, 0, Math.PI * 2);
         exportCtx.stroke();
         exportCtx.restore();
     }
 
-    // Centreringslogik
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    state.images.forEach(img => {
-        minX = Math.min(minX, img.x);
-        maxX = Math.max(maxX, img.x + img.width);
-        minY = Math.min(minY, img.y);
-        maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
-    });
-
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    // Tegn kun billeder og spejleffekter
+    // Tegn alle billeder centreret i forhold til cirklen
     state.images.forEach(img => {
         exportCtx.save();
         exportCtx.globalAlpha = img.opacity;
 
-        const x = (img.x - centerX) * scale + size / 2;
-        const y = (img.y - centerY) * scale + size / 2;
-        const width = img.width * scale;
-        const height = img.height * scale;
+        // Beregn position - centrer vandret og placer lige under cirkel-top
+        const x = centerX - img.width * scale / 2;
+        const y = centerY - img.height * scale / 2 - circleRadius * 0.8;
 
         if (img.flipped) {
-            exportCtx.translate(x + width, y);
+            exportCtx.translate(x + img.width * scale, y);
             exportCtx.scale(-1, 1);
-            exportCtx.drawImage(img.element, 0, 0, width, height);
+            exportCtx.drawImage(img.element, 0, 0, img.width * scale, img.height * scale);
         } else {
-            exportCtx.drawImage(img.element, x, y, width, height);
+            exportCtx.drawImage(img.element, x, y, img.width * scale, img.height * scale);
         }
 
+        // Tegn spejleffekt hvis aktiveret
         if (showMirror.checked && img.mirrorOpacity > 0) {
-            const mirrorY = y + height;
+            const mirrorY = y + img.height * scale;
             
             exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
+            // Clipping område for spejling
+            exportCtx.beginPath();
+            exportCtx.rect(x, mirrorY, img.width * scale, img.mirrorDistance * scale);
+            exportCtx.clip();
+            
+            // Tegn spejlet billede
             exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
             exportCtx.scale(1, -1);
-            exportCtx.drawImage(img.element, x, y, width, height);
+            exportCtx.globalAlpha = img.mirrorOpacity;
+            exportCtx.drawImage(img.element, x, y, img.width * scale, img.height * scale);
             exportCtx.restore();
 
+            // Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + img.mirrorDistance * scale
@@ -583,18 +608,20 @@ function exportLayout() {
             
             exportCtx.globalCompositeOperation = 'destination-out';
             exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
+            exportCtx.fillRect(x, mirrorY, img.width * scale, img.mirrorDistance * scale);
         }
         
         exportCtx.restore();
     });
 
+    // Trigger download
     const link = document.createElement('a');
     link.download = `design-${new Date().getTime()}.png`;
     link.href = exportCanvas.toDataURL('image/png');
     link.click();
 }
 
+    
     // Initialize the app
     initialize();
 });
