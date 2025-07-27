@@ -546,21 +546,20 @@ showMirror.addEventListener('change', function() {
     // Debug output
     console.log("=== EKSPORT DEBUG ===");
     console.log("Show Mirror:", showMirror.checked);
-    console.log("Billeder:", state.images.map(img => ({
+    console.log("Billedindstillinger:", state.images.map(img => ({
         navn: img.filename,
         spejl: {
             opacity: img.mirrorOpacity,
-            distance: img.mirrorDistance
-        },
-        position: `(${img.x},${img.y})`,
-        størrelse: `${img.width}x${img.height}`
+            distance: img.mirrorDistance,
+            aktiv: showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0
+        }
     })));
 
     const exportCanvas = document.createElement('canvas');
-    const padding = 40; // Øget padding for bedre marginer
-    const minSize = 500; // Minimum størrelse
-    const maxSize = 5000; // Maksimum størrelse
-    
+    const padding = 40; // God margin rundt om
+    const minSize = 500; // Minimumsstørrelse
+    const maxSize = 5000; // Maksimumsstørrelse
+
     // Beregn nødvendig plads inkl. spejleffekt
     let bounds = {
         left: Infinity,
@@ -570,9 +569,8 @@ showMirror.addEventListener('change', function() {
     };
 
     state.images.forEach(img => {
-        // Beregn bundgrænse inkl. spejleffekt
         const bottomWithMirror = img.y + img.height + 
-                               (showMirror.checked ? img.mirrorDistance : 0);
+                              (showMirror.checked ? img.mirrorDistance : 0);
         
         bounds.left = Math.min(bounds.left, img.x);
         bounds.right = Math.max(bounds.right, img.x + img.width);
@@ -583,7 +581,7 @@ showMirror.addEventListener('change', function() {
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
     
-    // Beregn canvas størrelse med minimums- og maksimumsbegrænsninger
+    // Beregn slutstørrelse med begrænsninger
     let size = Math.max(
         minSize,
         Math.min(
@@ -597,13 +595,13 @@ showMirror.addEventListener('change', function() {
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Tegn baggrund
+    // Tegn baggrund (hvis ikke transparent)
     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, size, size);
     }
 
-    // Beregn skalering og offset for centrering
+    // Beregn skalering for perfekt tilpasning
     const scale = Math.min(
         (size - padding * 2) / contentWidth,
         (size - padding * 2) / contentHeight
@@ -619,10 +617,10 @@ showMirror.addEventListener('change', function() {
         const width = img.width * scale;
         const height = img.height * scale;
 
+        // Tegn hovedbillede
         exportCtx.save();
         exportCtx.globalAlpha = img.opacity;
         
-        // Tegn hovedbillede
         if (img.flipped) {
             exportCtx.translate(x + width, y);
             exportCtx.scale(-1, 1);
@@ -630,25 +628,30 @@ showMirror.addEventListener('change', function() {
         } else {
             exportCtx.drawImage(img.element, x, y, width, height);
         }
+        exportCtx.restore();
 
         // Tegn spejleffekt (garanteret version)
-        if (showMirror.checked && img.mirrorOpacity > 0) {
-            const mirrorHeight = Math.max(10, img.mirrorDistance * scale);
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
+            const mirrorHeight = img.mirrorDistance * scale;
             
-            // 1. Tegn spejlbillede med clipping
+            // 1. Forbered spejleffekt
             exportCtx.save();
+            
+            // 2. Opret clipping område
             exportCtx.beginPath();
             exportCtx.rect(x, mirrorY, width, mirrorHeight);
             exportCtx.clip();
             
+            // 3. Tegn spejlbillede
             exportCtx.globalAlpha = img.mirrorOpacity;
             exportCtx.translate(0, mirrorY * 2 + mirrorHeight);
             exportCtx.scale(1, -1);
             exportCtx.drawImage(img.element, x, y, width, height);
             exportCtx.restore();
             
-            // 2. Tilføj fade-effekt
+            // 4. Tilføj fade-effekt
+            exportCtx.save();
             const gradient = exportCtx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + mirrorHeight
@@ -659,21 +662,38 @@ showMirror.addEventListener('change', function() {
             exportCtx.globalCompositeOperation = 'destination-out';
             exportCtx.fillStyle = gradient;
             exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
+            exportCtx.restore();
+            
+            // 5. Gendan standardindstillinger
+            exportCtx.globalCompositeOperation = 'source-over';
         }
-        
-        exportCtx.restore();
     });
+
+    // Ekstra debug: Vis bounding box (kan fjernes efter test)
+    exportCtx.strokeStyle = 'rgba(255,0,0,0.3)';
+    exportCtx.strokeRect(
+        offsetX + bounds.left * scale,
+        offsetY + bounds.top * scale,
+        contentWidth * scale,
+        contentHeight * scale
+    );
 
     // Download
     try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const timestamp = new Date().toISOString()
+            .replace(/[:.]/g, '-')
+            .replace('T', '_');
+        const filename = `design_${timestamp}.png`;
+        
         const link = document.createElement('a');
-        link.download = `design-${timestamp}.png`;
+        link.download = filename;
         link.href = exportCanvas.toDataURL('image/png', 1.0);
         link.click();
+        
+        console.log("Eksport fuldført:", filename);
     } catch (error) {
-        console.error('Download fejl:', error);
-        alert('Kunne ikke eksportere billede. Prøv igen.');
+        console.error('Eksport fejlede:', error);
+        alert('Der opstod en fejl under eksport. Prøv igen.');
     }
 }
 
