@@ -552,15 +552,17 @@ showMirror.addEventListener('change', function() {
             opacity: img.mirrorOpacity,
             distance: img.mirrorDistance,
             aktiv: showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0
-        }
+        },
+        position: `(${img.x},${img.y})`,
+        størrelse: `${img.width}x${img.height}`
     })));
 
     const exportCanvas = document.createElement('canvas');
-    const padding = 40; // God margin rundt om
-    const minSize = 500; // Minimumsstørrelse
-    const maxSize = 5000; // Maksimumsstørrelse
+    const padding = 40;
+    const minSize = 500;
+    const maxSize = 5000;
 
-    // Beregn nødvendig plads inkl. spejleffekt
+    // Beregn canvas størrelse
     let bounds = {
         left: Infinity,
         right: -Infinity,
@@ -568,6 +570,7 @@ showMirror.addEventListener('change', function() {
         bottom: -Infinity
     };
 
+    // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
         const bottomWithMirror = img.y + img.height + 
                               (showMirror.checked ? img.mirrorDistance : 0);
@@ -595,13 +598,13 @@ showMirror.addEventListener('change', function() {
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Tegn baggrund (hvis ikke transparent)
+    // Tegn baggrund
     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, size, size);
     }
 
-    // Beregn skalering for perfekt tilpasning
+    // Beregn skalering og offset for centrering
     const scale = Math.min(
         (size - padding * 2) / contentWidth,
         (size - padding * 2) / contentHeight
@@ -630,28 +633,20 @@ showMirror.addEventListener('change', function() {
         }
         exportCtx.restore();
 
-        // Tegn spejleffekt (garanteret version)
+        // Tegn spejleffekt (optimert version)
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
             const mirrorHeight = img.mirrorDistance * scale;
             
-            // 1. Forbered spejleffekt
             exportCtx.save();
             
-            // 2. Opret clipping område
-            exportCtx.beginPath();
-            exportCtx.rect(x, mirrorY, width, mirrorHeight);
-            exportCtx.clip();
-            
-            // 3. Tegn spejlbillede
+            // 1. Tegn spejlbillede med maskering
             exportCtx.globalAlpha = img.mirrorOpacity;
             exportCtx.translate(0, mirrorY * 2 + mirrorHeight);
             exportCtx.scale(1, -1);
             exportCtx.drawImage(img.element, x, y, width, height);
-            exportCtx.restore();
             
-            // 4. Tilføj fade-effekt
-            exportCtx.save();
+            // 2. Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + mirrorHeight
@@ -662,21 +657,34 @@ showMirror.addEventListener('change', function() {
             exportCtx.globalCompositeOperation = 'destination-out';
             exportCtx.fillStyle = gradient;
             exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
+            
             exportCtx.restore();
             
-            // 5. Gendan standardindstillinger
+            // 3. Gendan standardindstillinger
             exportCtx.globalCompositeOperation = 'source-over';
         }
     });
 
-    // Ekstra debug: Vis bounding box (kan fjernes efter test)
-    exportCtx.strokeStyle = 'rgba(255,0,0,0.3)';
-    exportCtx.strokeRect(
-        offsetX + bounds.left * scale,
-        offsetY + bounds.top * scale,
-        contentWidth * scale,
-        contentHeight * scale
-    );
+    // Tilføj tekst (eksempel)
+    exportCtx.save();
+    exportCtx.font = 'bold 24px Arial';
+    exportCtx.fillStyle = '#000000';
+    exportCtx.textAlign = 'center';
+    
+    const textLines = [
+        "TRIXIE",
+        "GEFLÜGEL",
+        "CRÈME",
+        "Poultry Pate",
+        "Pâté de volaille",
+        "Pâté di pollo"
+    ];
+    
+    const textYStart = size - padding - (textLines.length * 30);
+    textLines.forEach((line, i) => {
+        exportCtx.fillText(line, size/2, textYStart + (i * 30));
+    });
+    exportCtx.restore();
 
     // Download
     try {
@@ -696,6 +704,7 @@ showMirror.addEventListener('change', function() {
         alert('Der opstod en fejl under eksport. Prøv igen.');
     }
 }
+    
 
     
     // Initialize the app
