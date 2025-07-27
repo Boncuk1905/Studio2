@@ -543,26 +543,12 @@ showMirror.addEventListener('change', function() {
         return;
     }
 
-    // Debug output
-    console.log("=== EKSPORT DEBUG ===");
-    console.log("Show Mirror:", showMirror.checked);
-    console.log("Billedindstillinger:", state.images.map(img => ({
-        navn: img.filename,
-        spejl: {
-            opacity: img.mirrorOpacity,
-            distance: img.mirrorDistance,
-            aktiv: showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0
-        },
-        position: `(${img.x},${img.y})`,
-        størrelse: `${img.width}x${img.height}`
-    })));
-
+    // Opret export canvas
     const exportCanvas = document.createElement('canvas');
-    const padding = 40;
-    const minSize = 500;
-    const maxSize = 5000;
+    const exportCtx = exportCanvas.getContext('2d');
+    exportCtx.imageSmoothingQuality = 'high';
 
-    // Beregn canvas størrelse
+    // Beregn canvas størrelse baseret på alle billeder + spejleffekt
     let bounds = {
         left: Infinity,
         right: -Infinity,
@@ -570,55 +556,39 @@ showMirror.addEventListener('change', function() {
         bottom: -Infinity
     };
 
-    // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
-        const bottomWithMirror = img.y + img.height + 
-                              (showMirror.checked ? img.mirrorDistance : 0);
+        // Inkluder spejlhøjde i beregningen hvis spejling er aktiveret
+        const imgBottom = img.y + img.height + 
+                        (showMirror.checked ? img.mirrorDistance : 0);
         
         bounds.left = Math.min(bounds.left, img.x);
         bounds.right = Math.max(bounds.right, img.x + img.width);
         bounds.top = Math.min(bounds.top, img.y);
-        bounds.bottom = Math.max(bounds.bottom, bottomWithMirror);
+        bounds.bottom = Math.max(bounds.bottom, imgBottom);
     });
 
+    // Tilføj padding
+    const padding = 40;
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
     
-    // Beregn slutstørrelse med begrænsninger
-    let size = Math.max(
-        minSize,
-        Math.min(
-            maxSize,
-            Math.max(contentWidth, contentHeight) + padding * 2
-        )
-    );
-    
-    exportCanvas.width = size;
-    exportCanvas.height = size;
-    const exportCtx = exportCanvas.getContext('2d');
-    exportCtx.imageSmoothingQuality = 'high';
+    // Sæt canvas størrelse
+    exportCanvas.width = contentWidth + padding * 2;
+    exportCanvas.height = contentHeight + padding * 2;
 
-    // Tegn baggrund (hvis ikke transparent)
+    // Tegn baggrund
     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
-        exportCtx.fillRect(0, 0, size, size);
+        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
     }
 
-    // Beregn skalering og offset for centrering
-    const scale = Math.min(
-        (size - padding * 2) / contentWidth,
-        (size - padding * 2) / contentHeight
-    );
-    
-    const offsetX = (size - contentWidth * scale) / 2 - bounds.left * scale;
-    const offsetY = (size - contentHeight * scale) / 2 - bounds.top * scale;
-
-    // Tegn alle billeder med spejleffekt
+    // Tegn alle billeder
     state.images.forEach(img => {
-        const x = offsetX + img.x * scale;
-        const y = offsetY + img.y * scale;
-        const width = img.width * scale;
-        const height = img.height * scale;
+        // Beregn position med padding
+        const x = padding + img.x - bounds.left;
+        const y = padding + img.y - bounds.top;
+        const width = img.width;
+        const height = img.height;
 
         // Tegn hovedbillede
         exportCtx.save();
@@ -633,28 +603,22 @@ showMirror.addEventListener('change', function() {
         }
         exportCtx.restore();
 
-        // Tegn spejleffekt (kun hvis aktiveret og indstillinger > 0)
+        // Tegn spejleffekt (kun hvis aktiveret)
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
-            const mirrorHeight = img.mirrorDistance * scale;
+            const mirrorHeight = img.mirrorDistance;
             
             exportCtx.save();
             
-            // 1. Opret clipping område for spejlen
+            // 1. Opret clipping område
             exportCtx.beginPath();
             exportCtx.rect(x, mirrorY, width, mirrorHeight);
             exportCtx.clip();
             
-            // 2. Tegn det spejlede billede
+            // 2. Tegn spejlbilledet
             exportCtx.globalAlpha = img.mirrorOpacity;
-            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2 + mirrorHeight);
-            exportCtx.drawImage(
-                img.element, 
-                x, 
-                -y - height,  // Korriger for spejling
-                width, 
-                height
-            );
+            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2);
+            exportCtx.drawImage(img.element, x, -y - height, width, height);
             
             // 3. Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
@@ -669,23 +633,15 @@ showMirror.addEventListener('change', function() {
             exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
             
             exportCtx.restore();
-            
-            // 4. Gendan standardindstillinger
-            exportCtx.globalCompositeOperation = 'source-over';
         }
     });
 
-    // Download
-    try {
-        const timestamp = new Date().toISOString()
-            .replace(/[:.]/g, '-')
-            .replace('T', '_');
-        const filename = `design_${timestamp}.png`;
-        
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = exportCanvas.toDataURL('image/png', 1.0);
-        link.click();
+    // Download billedet
+    const link = document.createElement('a');
+    link.download = 'design_' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+}
         
         console.log("Eksport fuldført:", filename);
     } catch (error) {
