@@ -165,12 +165,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Tegn spejleffekt hvis aktiveret OG opacity > 0
-    if (showMirror.checked && img.mirrorOpacity > 0) {
-        drawMirrorEffect(img);
-    }
+if (showMirror.checked && img.mirrorOpacity > 0) {
+    const mirrorY = img.y + img.height;
+    const mirrorHeight = img.mirrorDistance;
     
+    // 1. Tegn spejlbilledet (uden clipping)
+    ctx.save();
+    ctx.globalAlpha = img.mirrorOpacity;
+    ctx.translate(0, mirrorY * 2 + mirrorHeight);
+    ctx.scale(1, -1);
+    ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
+    ctx.restore();
+    
+    // 2. Anvend fade-effekt
+    ctx.save();
+    const gradient = ctx.createLinearGradient(
+        img.x, mirrorY,
+        img.x, mirrorY + mirrorHeight
+    );
+    gradient.addColorStop(0, `rgba(255,255,255,1)`);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(img.x, mirrorY, img.width, mirrorHeight);
     ctx.restore();
 }
+
+ctx.restore();
+    }
 
     function drawMirrorEffect(img) {
     ctx.save();
