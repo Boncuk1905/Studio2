@@ -516,19 +516,24 @@ showMirror.addEventListener('change', function() {
         return;
     }
 
+    // Debug output
+    console.log("=== EKSPORT DEBUG ===");
+    console.log("Show Mirror Checkbox:", showMirror.checked);
+    console.log("State Images:", state.images.map(img => ({
+        name: img.filename,
+        mirror: {
+            opacity: img.mirrorOpacity,
+            distance: img.mirrorDistance,
+            enabled: img.mirrorOpacity > 0 && img.mirrorDistance > 0
+        },
+        position: { x: img.x, y: img.y },
+        size: { width: img.width, height: img.height }
+    })));
+
     const exportCanvas = document.createElement('canvas');
     const padding = 20;
     const maxSize = 5000;
     
-    // Debug log
-    console.log("Eksportindstillinger:", {
-        showMirror: showMirror.checked,
-        images: state.images.map(img => ({
-            mirrorOpacity: img.mirrorOpacity,
-            mirrorDistance: img.mirrorDistance
-        }))
-    });
-
     // Beregn canvas størrelse
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     
@@ -578,14 +583,20 @@ showMirror.addEventListener('change', function() {
             exportCtx.drawImage(img.element, x, y, width, height);
         }
 
+        // Tving spejleffekt til under debug (midlertidig)
+        const DEBUG_FORCE_MIRROR = true;
+        const shouldShowMirror = DEBUG_FORCE_MIRROR || (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0);
+
         // Tegn spejleffekt hvis aktiveret
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+        if (shouldShowMirror) {
             try {
+                const effectiveOpacity = DEBUG_FORCE_MIRROR ? 0.3 : img.mirrorOpacity;
+                const effectiveDistance = DEBUG_FORCE_MIRROR ? 30 : img.mirrorDistance;
                 const mirrorY = y + height;
-                const mirrorHeight = img.mirrorDistance * scaleFactor;
+                const mirrorHeight = effectiveDistance * scaleFactor;
                 
                 exportCtx.save();
-                exportCtx.globalAlpha = img.mirrorOpacity;
+                exportCtx.globalAlpha = effectiveOpacity;
                 
                 // Clipping område
                 exportCtx.beginPath();
@@ -603,7 +614,7 @@ showMirror.addEventListener('change', function() {
                     x, mirrorY,
                     x, mirrorY + mirrorHeight
                 );
-                gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+                gradient.addColorStop(0, `rgba(255,255,255,${effectiveOpacity})`);
                 gradient.addColorStop(1, 'rgba(255,255,255,0)');
                 
                 exportCtx.globalCompositeOperation = 'destination-out';
