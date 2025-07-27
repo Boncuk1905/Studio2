@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isDragging: false,
         isResizing: false,
         isPanning: false,
+        showGuidesInExport: false,
         startX: 0,
         startY: 0,
         startLeft: 0,
@@ -475,13 +476,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-   function exportLayout() {
+function exportLayout() {
     const exportCanvas = document.createElement('canvas');
     let size, scale;
 
-    // Brug fixed størrelse eller auto-beregning
     if (exportSize.value === 'auto') {
-        // Beregn content bounds
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         
         state.images.forEach(img => {
@@ -493,7 +492,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const contentWidth = maxX - minX;
         const contentHeight = maxY - minY;
-        size = Math.max(contentWidth, contentHeight) * 1.2; // 20% padding
+        size = Math.max(contentWidth, contentHeight) * 1.2;
         scale = 1;
     } else {
         size = parseInt(exportSize.value.split('x')[0]);
@@ -504,14 +503,38 @@ document.addEventListener('DOMContentLoaded', function() {
     exportCanvas.height = size;
     const exportCtx = exportCanvas.getContext('2d');
 
-    // Tegn baggrund
-    if (!transparentBg.checked) {
+    // Tegn baggrund (kun hvis ikke transparent)
+     if (!transparentBg.checked) {
         exportCtx.fillStyle = bgColor.value;
         exportCtx.fillRect(0, 0, size, size);
     }
 
-    // CENTRERINGSLØSNING:
-    // Beregn center for alle elementer
+    // TEGN GUIDES HVIS AKTIVERET (nye linjer)
+    if (state.showGuidesInExport) {
+        exportCtx.save();
+        exportCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+        exportCtx.lineWidth = 2;
+        
+        // Vertikal midterlinje
+        exportCtx.beginPath();
+        exportCtx.moveTo(size/2, 0);
+        exportCtx.lineTo(size/2, size);
+        exportCtx.stroke();
+        
+        // Horisontal midterlinje
+        exportCtx.beginPath();
+        exportCtx.moveTo(0, size/2);
+        exportCtx.lineTo(size, size/2);
+        exportCtx.stroke();
+        
+        // Cirkel i midten
+        exportCtx.beginPath();
+        exportCtx.arc(size/2, size/2, size * 0.1, 0, Math.PI * 2);
+        exportCtx.stroke();
+        exportCtx.restore();
+    }
+
+    // Centreringslogik
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     state.images.forEach(img => {
         minX = Math.min(minX, img.x);
@@ -523,35 +546,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
-    // Tegn midterlinje og cirkel FØRST (bag alle billeder)
-    exportCtx.save();
-    exportCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-    exportCtx.lineWidth = 2;
-    
-    // Vertikal midterlinje
-    exportCtx.beginPath();
-    exportCtx.moveTo(size/2, 0);
-    exportCtx.lineTo(size/2, size);
-    exportCtx.stroke();
-    
-    // Horisontal midterlinje
-    exportCtx.beginPath();
-    exportCtx.moveTo(0, size/2);
-    exportCtx.lineTo(size, size/2);
-    exportCtx.stroke();
-    
-    // Cirkel i midten
-    exportCtx.beginPath();
-    exportCtx.arc(size/2, size/2, size * 0.1, 0, Math.PI * 2);
-    exportCtx.stroke();
-    exportCtx.restore();
-
-    // Tegn alle billeder centreret
+    // Tegn kun billeder og spejleffekter
     state.images.forEach(img => {
         exportCtx.save();
         exportCtx.globalAlpha = img.opacity;
 
-        // Beregn position i forhold til center
         const x = (img.x - centerX) * scale + size / 2;
         const y = (img.y - centerY) * scale + size / 2;
         const width = img.width * scale;
@@ -565,39 +564,31 @@ document.addEventListener('DOMContentLoaded', function() {
             exportCtx.drawImage(img.element, x, y, width, height);
         }
 
-        // Tegn spejleffekt hvis aktiveret
-      if (showMirror.checked && img.mirrorOpacity > 0) {
-    const mirrorY = y + height;
-    
-    exportCtx.save();
-    // Brug nøjagtig samme transform-logik som i preview
-    exportCtx.beginPath();
-    exportCtx.rect(x, mirrorY, width, img.mirrorDistance * scale);
-    exportCtx.clip();
-    
-    exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
-    exportCtx.scale(1, -1);
-    exportCtx.globalAlpha = img.mirrorOpacity;
-    exportCtx.drawImage(img.element, x, y, width, height);
-    exportCtx.restore();
-    
-    // Samme gradient-effekt
-    const gradient = exportCtx.createLinearGradient(
-        x, mirrorY,
-        x, mirrorY + img.mirrorDistance * scale
-    );
-    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    
-    exportCtx.globalCompositeOperation = 'destination-out';
-    exportCtx.fillStyle = gradient;
-    exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
-}
+        if (showMirror.checked && img.mirrorOpacity > 0) {
+            const mirrorY = y + height;
+            
+            exportCtx.save();
+            exportCtx.globalAlpha = img.mirrorOpacity;
+            exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
+            exportCtx.scale(1, -1);
+            exportCtx.drawImage(img.element, x, y, width, height);
+            exportCtx.restore();
+
+            const gradient = exportCtx.createLinearGradient(
+                x, mirrorY,
+                x, mirrorY + img.mirrorDistance * scale
+            );
+            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            exportCtx.globalCompositeOperation = 'destination-out';
+            exportCtx.fillStyle = gradient;
+            exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
+        }
         
         exportCtx.restore();
     });
 
-    // Download
     const link = document.createElement('a');
     link.download = `design-${new Date().getTime()}.png`;
     link.href = exportCanvas.toDataURL('image/png');
