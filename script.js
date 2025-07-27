@@ -25,38 +25,38 @@ document.addEventListener('DOMContentLoaded', function() {
     const resetZoomBtn = document.getElementById('resetZoomBtn');
 
     // App state
-    const state = {
-        images: [],
-        selectedImage: null,
-        isDragging: false,
-        isResizing: false,
-        isPanning: false,
-        showGuidesInExport: false,
-        startX: 0,
-        startY: 0,
-        startLeft: 0,
-        startTop: 0,
-        startWidth: 0,
-        startHeight: 0,
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0,
-        startPanX: 0,
-        startPanY: 0,
-        minScale: 0.1,
-        maxScale: 3,
-        mirrorVisible: true,
-        grid: {
-            size: 20,
-            enabled: true,
-            color: 'rgba(0, 0, 0, 0.1)',
-            visible: true,
-            snapThreshold: 5
-        },
-        defaultMirrorSettings: {
+   const state = {
+    images: [],
+    selectedImage: null,
+    isDragging: false,
+    isResizing: false,
+    isPanning: false,
+    showGuidesInExport: false,
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+    startWidth: 0,
+    startHeight: 0,
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    startPanX: 0,
+    startPanY: 0,
+    minScale: 0.1,
+    maxScale: 3,
+    mirrorVisible: true,
+    grid: {
+        size: 20,
+        enabled: true,
+        color: 'rgba(0, 0, 0, 0.1)',
+        visible: true,
+        snapThreshold: 5
+    },
+    defaultMirrorSettings: {
         opacity: 0.3,
         distance: 20
-    }
+    } // Komma fjernet da dette er den sidste egenskab
 };
 
     // Initialize the app
@@ -284,20 +284,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addImageToCanvas(img, filename) {
     const newImage = {
-        element: img,
-        originalWidth: img.width,
-        originalHeight: img.height,
-        width: img.width,
-        height: img.height,
-        x: 0,
-        y: 0,
-        scale: 1,
-        opacity: 1,
-        mirrorOpacity: state.defaultMirrorSettings.opacity,
-        mirrorDistance: state.defaultMirrorSettings.distance,
-        flipped: false,
-        filename: filename,
-        number: state.images.length + 1
+        element: img,  // Image objektet
+        originalWidth: img.width,  // Original bredde
+        originalHeight: img.height, // Original højde
+        x: 50,  // Start x-position (kan ændres)
+        y: 50,  // Start y-position (kan ændres)
+        width: img.width,  // Start bredde
+        height: img.height, // Start højde
+        opacity: 1,  // Fuld synlighed (1 = 100%)
+        mirrorOpacity: state.defaultMirrorSettings.opacity, // Standard spejlgennemsigtighed
+        mirrorDistance: state.defaultMirrorSettings.distance, // Standard spejlhøjde
+        flipped: false,  // Start uden spejlvending
+        filename: filename,  // Filnavn
+        number: state.images.length + 1  // Unikt nummer
     };
     
     state.images.push(newImage);
@@ -537,7 +536,7 @@ showMirror.addEventListener('change', function() {
         });
     }
 
-   function exportLayout() {
+    function exportLayout() {
     if (state.images.length === 0) {
         alert('Ingen billeder at eksportere!');
         return;
