@@ -571,8 +571,8 @@ showMirror.addEventListener('change', function() {
     // Beregn grænser inkl. spejleffekt
     state.images.forEach(img => {
         const bottomWithMirror = img.y + img.height + 
-                              (showMirror.checked ? img.mirrorDistance : 0);
-        
+            (showMirror.checked ? img.mirrorDistance : 0);
+
         bounds.left = Math.min(bounds.left, img.x);
         bounds.right = Math.max(bounds.right, img.x + img.width);
         bounds.top = Math.min(bounds.top, img.y);
@@ -581,7 +581,7 @@ showMirror.addEventListener('change', function() {
 
     const contentWidth = bounds.right - bounds.left;
     const contentHeight = bounds.bottom - bounds.top;
-    
+
     // Tilføj padding
     const padding = 40;
     exportCanvas.width = contentWidth + padding * 2;
@@ -603,7 +603,7 @@ showMirror.addEventListener('change', function() {
         // Tegn hovedbillede
         exportCtx.save();
         exportCtx.globalAlpha = img.opacity;
-        
+
         if (img.flipped) {
             exportCtx.translate(x + width, y);
             exportCtx.scale(-1, 1);
@@ -617,29 +617,30 @@ showMirror.addEventListener('change', function() {
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
             const mirrorHeight = img.mirrorDistance;
-            
+
             exportCtx.save();
-            
-            // 1. Tegn spejlbilledet
+
+            // 1. Tegn spejlbilledet (inkl. korrekt x-position)
+            exportCtx.setTransform(1, 0, 0, -1, x, mirrorY * 2);
             exportCtx.globalAlpha = img.mirrorOpacity;
-            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2);
-            exportCtx.drawImage(img.element, x, -y - height, width, height);
-            
+            exportCtx.drawImage(img.element, 0, y, width, height);
+
             // 2. Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
-                x, mirrorY,
-                x, mirrorY + mirrorHeight
+                0, mirrorY - y,
+                0, mirrorY - y + mirrorHeight
             );
             gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
             gradient.addColorStop(1, 'rgba(255,255,255,0)');
-            
+
             exportCtx.globalCompositeOperation = 'destination-out';
             exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
-            
+            exportCtx.fillRect(0, mirrorY - y, width, mirrorHeight);
+
             exportCtx.restore();
-            
+
             // 3. Gendan standardindstillinger
+            exportCtx.setTransform(1, 0, 0, 1, 0, 0);
             exportCtx.globalCompositeOperation = 'source-over';
         }
     });
@@ -650,20 +651,18 @@ showMirror.addEventListener('change', function() {
             .replace(/[:.]/g, '-')
             .replace('T', '_');
         const filename = `design_${timestamp}.png`;
-        
+
         const link = document.createElement('a');
         link.download = filename;
         link.href = exportCanvas.toDataURL('image/png', 1.0);
         link.click();
-        
+
         console.log("Eksport fuldført:", filename);
     } catch (error) {
         console.error('Eksport fejlede:', error);
         alert('Der opstod en fejl under eksport. Prøv igen.');
     }
 }
-    
-
     
     // Initialize the app
     initialize();
