@@ -633,20 +633,30 @@ showMirror.addEventListener('change', function() {
         }
         exportCtx.restore();
 
-        // Tegn spejleffekt (optimert version)
+        // Tegn spejleffekt (kun hvis aktiveret og indstillinger > 0)
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
             const mirrorHeight = img.mirrorDistance * scale;
             
             exportCtx.save();
             
-            // 1. Tegn spejlbillede med maskering
-            exportCtx.globalAlpha = img.mirrorOpacity;
-            exportCtx.translate(0, mirrorY * 2 + mirrorHeight);
-            exportCtx.scale(1, -1);
-            exportCtx.drawImage(img.element, x, y, width, height);
+            // 1. Opret clipping område for spejlen
+            exportCtx.beginPath();
+            exportCtx.rect(x, mirrorY, width, mirrorHeight);
+            exportCtx.clip();
             
-            // 2. Tilføj fade-effekt
+            // 2. Tegn det spejlede billede
+            exportCtx.globalAlpha = img.mirrorOpacity;
+            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2 + mirrorHeight);
+            exportCtx.drawImage(
+                img.element, 
+                x, 
+                -y - height,  // Korriger for spejling
+                width, 
+                height
+            );
+            
+            // 3. Tilføj fade-effekt
             const gradient = exportCtx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + mirrorHeight
@@ -660,7 +670,7 @@ showMirror.addEventListener('change', function() {
             
             exportCtx.restore();
             
-            // 3. Gendan standardindstillinger
+            // 4. Gendan standardindstillinger
             exportCtx.globalCompositeOperation = 'source-over';
         }
     });
