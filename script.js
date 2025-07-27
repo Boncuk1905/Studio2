@@ -52,8 +52,12 @@ document.addEventListener('DOMContentLoaded', function() {
             color: 'rgba(0, 0, 0, 0.1)',
             visible: true,
             snapThreshold: 5
-        }
-    };
+        },
+        defaultMirrorSettings: {
+        opacity: 0.3,
+        distance: 20
+    }
+};
 
     // Initialize the app
     function initialize() {
@@ -148,11 +152,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawSingleImage(img) {
-        ctx.save();
-        ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
-        ctx.globalAlpha = img.opacity;
+    ctx.save();
+    ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
+    ctx.globalAlpha = img.opacity;
 
-        if (img.flipped) {
+    if (img.flipped) {
         ctx.translate(img.x + img.width, img.y);
         ctx.scale(-1, 1);
         ctx.drawImage(img.element, 0, 0, img.width, img.height);
@@ -160,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
     }
 
-    // Tegn spejleffekt hvis aktiveret
+    // Tegn spejleffekt hvis aktiveret OG opacity > 0
     if (showMirror.checked && img.mirrorOpacity > 0) {
         drawMirrorEffect(img);
     }
@@ -172,30 +176,34 @@ document.addEventListener('DOMContentLoaded', function() {
     ctx.save();
     ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
     
+    // Beregn spejlingsposition
+    const mirrorY = img.y + img.height;
+    const mirrorDistance = img.mirrorDistance;
+    
     // Opret clipping område
     ctx.beginPath();
-    ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+    ctx.rect(img.x, mirrorY, img.width, mirrorDistance);
     ctx.clip();
     
     // Tegn spejlet billede
     ctx.save();
-    ctx.translate(0, img.y + img.height * 2 + img.mirrorDistance);
+    ctx.translate(0, mirrorY * 2 + mirrorDistance);
     ctx.scale(1, -1);
     ctx.globalAlpha = img.mirrorOpacity;
     ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
     ctx.restore();
     
-    // Tilføj fade effekt
+    // Tilføj fade-effekt
     const gradient = ctx.createLinearGradient(
-        img.x, img.y + img.height,
-        img.x, img.y + img.height + img.mirrorDistance
+        img.x, mirrorY,
+        img.x, mirrorY + mirrorDistance
     );
     gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
     
     ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = gradient;
-    ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
+    ctx.fillRect(img.x, mirrorY, img.width, mirrorDistance);
     
     ctx.restore();
 }
@@ -248,26 +256,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function addImageToCanvas(img, filename) {
-        const newImage = {
-            element: img,
-            originalWidth: img.width,
-            originalHeight: img.height,
-            width: img.width,
-            height: img.height,
-            x: (canvas.width / 2 - img.width / 2 - state.offsetX) / state.scale,
-            y: (canvas.height / 2 - img.height / 2 - state.offsetY) / state.scale,
-            scale: 1,
-            opacity: 1,
-            mirrorOpacity: mirrorOpacitySlider.value / 100,
-            mirrorDistance: parseInt(mirrorDistanceSlider.value),
-            flipped: false,
-            filename: filename,
-            number: state.images.length + 1
-        };
-
-        state.images.push(newImage);
-        selectImage(newImage);
-    }
+    const newImage = {
+        element: img,
+        originalWidth: img.width,
+        originalHeight: img.height,
+        width: img.width,
+        height: img.height,
+        x: 0,
+        y: 0,
+        scale: 1,
+        opacity: 1,
+        mirrorOpacity: state.defaultMirrorSettings.opacity,
+        mirrorDistance: state.defaultMirrorSettings.distance,
+        flipped: false,
+        filename: filename,
+        number: state.images.length + 1
+    };
+    
+    state.images.push(newImage);
+    selectImage(newImage);
+}
 
     function handleMouseDown(e) {
         e.preventDefault();
@@ -472,19 +480,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        mirrorOpacitySlider.addEventListener('input', (e) => {
-            if (state.selectedImage) {
-                state.selectedImage.mirrorOpacity = e.target.value / 100;
-                mirrorOpacityValue.textContent = e.target.value;
-            }
-        });
-        
-        mirrorDistanceSlider.addEventListener('input', (e) => {
-            if (state.selectedImage) {
-                state.selectedImage.mirrorDistance = parseInt(e.target.value);
-                mirrorDistanceValue.textContent = e.target.value;
-            }
-        });
+       mirrorOpacitySlider.addEventListener('input', function(e) {
+    if (state.selectedImage) {
+        state.selectedImage.mirrorOpacity = e.target.value / 100;
+        mirrorOpacityValue.textContent = e.target.value;
+    }
+});
+
+mirrorDistanceSlider.addEventListener('input', function(e) {
+    if (state.selectedImage) {
+        state.selectedImage.mirrorDistance = parseInt(e.target.value);
+        mirrorDistanceValue.textContent = e.target.value;
+    }
+});
+
+showMirror.addEventListener('change', function() {
+    // Force rerender når checkbox ændres
+});
         
         // Canvas interaction
         canvas.addEventListener('mousedown', handleMouseDown);
