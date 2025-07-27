@@ -1,5 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM elements
+document.addEventListener('DOMContentLoaded', function () {
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d');
     const imageUpload = document.getElementById('imageUpload');
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const zoomOutBtn = document.getElementById('zoomOutBtn');
     const resetZoomBtn = document.getElementById('resetZoomBtn');
 
-    // App state
     const state = {
         images: [],
         selectedImage: null,
@@ -54,13 +52,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Initialize the app
     function initialize() {
-        if (!canvas) {
-            console.error('Canvas element not found');
-            return;
-        }
-
+        if (!canvas) return console.error('Canvas not found');
         resizeCanvasToContainer();
         setupEventListeners();
         renderLoop();
@@ -80,11 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function render() {
         clearCanvas();
         drawBackground();
-        
-        if (showGuides.checked) {
-            drawGrid();
-        }
-
+        if (showGuides.checked) drawGrid();
         drawAllImages();
     }
 
@@ -101,37 +90,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function drawGrid() {
         const gridSize = state.grid.size;
-        const width = canvas.width;
-        const height = canvas.height;
-        
         ctx.strokeStyle = state.grid.color;
         ctx.lineWidth = 1;
-        
-        for (let x = 0; x <= width; x += gridSize) {
+
+        for (let x = 0; x <= canvas.width; x += gridSize) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
+            ctx.lineTo(x, canvas.height);
             ctx.stroke();
         }
-        
-        for (let y = 0; y <= height; y += gridSize) {
+
+        for (let y = 0; y <= canvas.height; y += gridSize) {
             ctx.beginPath();
             ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
+            ctx.lineTo(canvas.width, y);
             ctx.stroke();
         }
     }
 
     function drawAllImages() {
-        // Sorter billeder efter deres nummer (så den højeste vises øverst)
         const sortedImages = [...state.images].sort((a, b) => a.number - b.number);
-        
         sortedImages.forEach(img => {
             drawSingleImage(img);
-            
-            if (img === state.selectedImage) {
-                drawImageSelection(img);
-            }
+            if (img === state.selectedImage) drawImageSelection(img);
         });
     }
 
@@ -139,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
         ctx.globalAlpha = img.opacity;
-        
+
         if (img.flipped) {
             ctx.translate(img.x + img.width, img.y);
             ctx.scale(-1, 1);
@@ -147,82 +128,58 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
         }
-        
-        // Tegn spejleffekt hvis aktiveret
-        if (showMirror.checked && img.mirrorOpacity > 0) {
-            drawMirrorEffect(img);
-        }
-        
+
+        if (showMirror.checked && img.mirrorOpacity > 0) drawMirrorEffect(img);
         ctx.restore();
     }
 
     function drawMirrorEffect(img) {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
-        
-        // Opret klipområde
-        ctx.beginPath();
-        ctx.rect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        ctx.clip();
-        
-        // Tegn spejlbillede
+        const mirrorY = img.y + img.height;
+
         ctx.save();
-        ctx.globalAlpha = img.mirrorOpacity;
-        ctx.translate(0, img.y + img.height * 2 + img.mirrorDistance);
+        ctx.translate(0, mirrorY * 2 + img.mirrorDistance);
         ctx.scale(1, -1);
+        ctx.globalAlpha = img.mirrorOpacity;
         ctx.drawImage(img.element, img.x, img.y, img.width, img.height);
         ctx.restore();
-        
-        // Tilføj gradient fade
+
         const gradient = ctx.createLinearGradient(
-            img.x, img.y + img.height,
-            img.x, img.y + img.height + img.mirrorDistance
+            img.x, mirrorY,
+            img.x, mirrorY + img.mirrorDistance
         );
         gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
         gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        
+
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fillStyle = gradient;
-        ctx.fillRect(img.x, img.y + img.height, img.width, img.mirrorDistance);
-        
+        ctx.fillRect(img.x, mirrorY, img.width, img.mirrorDistance);
         ctx.restore();
     }
 
     function drawImageSelection(img) {
         ctx.save();
         ctx.setTransform(state.scale, 0, 0, state.scale, state.offsetX, state.offsetY);
-        
-        // Markering
         ctx.strokeStyle = '#3498db';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(img.x - 2, img.y - 2, img.width + 4, img.height + 4);
-        
-        // Ændrings-håndtag
         ctx.fillStyle = '#3498db';
-        ctx.fillRect(
-            img.x + img.width - 8,
-            img.y + img.height - 8,
-            10, 10
-        );
-        
+        ctx.fillRect(img.x + img.width - 8, img.y + img.height - 8, 10, 10);
         ctx.restore();
     }
 
     function handleImageUpload(e) {
         const files = e.target.files;
-        if (!files || files.length === 0) return;
+        if (!files.length) return;
 
-        Array.from(files).forEach((file, index) => {
-            if (!file.type.match('image.*')) {
-                console.log('Ignorerer ikke-billede:', file.name);
-                return;
-            }
-
+        Array.from(files).forEach((file) => {
+            if (!file.type.match('image.*')) return;
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = function (event) {
                 const img = new Image();
-                img.onload = function() {
+                img.onload = function () {
                     addImageToCanvas(img, file.name, state.images.length + 1);
                 };
                 img.src = event.target.result;
@@ -248,76 +205,65 @@ document.addEventListener('DOMContentLoaded', function() {
             filename: filename,
             number: number
         };
-
         state.images.push(newImage);
         selectImage(newImage);
     }
 
-    // ... (resten af dine funktioner for mouse events, zoom etc.) ...
+    function selectImage(img) {
+        state.selectedImage = img;
+    }
 
     function exportLayout() {
         const exportCanvas = document.createElement('canvas');
         let size, scale;
-        
+
         if (exportSize.value === 'auto') {
-            // Beregn den nødvendige størrelse for at passe alt indhold
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            
             state.images.forEach(img => {
                 minX = Math.min(minX, img.x);
                 maxX = Math.max(maxX, img.x + img.width);
                 minY = Math.min(minY, img.y);
                 maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
             });
-            
+            const padding = 20;
             const contentWidth = maxX - minX;
             const contentHeight = maxY - minY;
-            const padding = 20; // Tilføj lidt padding
-            
             size = Math.max(contentWidth, contentHeight) + padding * 2;
             scale = 1;
         } else {
             size = parseInt(exportSize.value.split('x')[0]);
             scale = size / Math.max(canvas.width, canvas.height);
         }
-        
+
         exportCanvas.width = size;
         exportCanvas.height = size;
         const exportCtx = exportCanvas.getContext('2d');
-        
-        // Baggrund
+
         if (!transparentBg.checked) {
             exportCtx.fillStyle = bgColor.value;
-            exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            exportCtx.fillRect(0, 0, size, size);
         }
-        
-        // Find centerpunkt for alle billeder
-        let centerX = 0, centerY = 0;
-        if (state.images.length > 0) {
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            
-            state.images.forEach(img => {
-                minX = Math.min(minX, img.x);
-                maxX = Math.max(maxX, img.x + img.width);
-                minY = Math.min(minY, img.y);
-                maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
-            });
-            
-            centerX = (minX + maxX) / 2;
-            centerY = (minY + maxY) / 2;
-        }
-        
-        // Tegn alle billeder centreret
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        state.images.forEach(img => {
+            minX = Math.min(minX, img.x);
+            maxX = Math.max(maxX, img.x + img.width);
+            minY = Math.min(minY, img.y);
+            maxY = Math.max(maxY, img.y + img.height + (showMirror.checked ? img.mirrorDistance : 0));
+        });
+
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
         state.images.forEach(img => {
             exportCtx.save();
             exportCtx.globalAlpha = img.opacity;
-            
-            // Beregn position centreret på canvas
+
             const x = (img.x - centerX) * scale + size / 2;
             const y = (img.y - centerY) * scale + size / 2;
             const width = img.width * scale;
             const height = img.height * scale;
-            
+
             if (img.flipped) {
                 exportCtx.translate(x + width, y);
                 exportCtx.scale(-1, 1);
@@ -325,42 +271,42 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 exportCtx.drawImage(img.element, x, y, width, height);
             }
-            
-            // Tegn spejleffekt hvis aktiveret
+
             if (showMirror.checked && img.mirrorOpacity > 0) {
+                const mirrorY = y + height;
+
                 exportCtx.save();
-                exportCtx.globalAlpha = img.mirrorOpacity;
-                
-                // Spejlbillede
-                exportCtx.translate(0, height + img.mirrorDistance * scale);
+                exportCtx.translate(0, mirrorY * 2 + img.mirrorDistance * scale);
                 exportCtx.scale(1, -1);
+                exportCtx.globalAlpha = img.mirrorOpacity;
                 exportCtx.drawImage(img.element, x, y, width, height);
-                
-                // Gradient fade
+                exportCtx.restore();
+
                 const gradient = exportCtx.createLinearGradient(
-                    x, y + height,
-                    x, y + height + img.mirrorDistance * scale
+                    x, mirrorY,
+                    x, mirrorY + img.mirrorDistance * scale
                 );
                 gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
                 gradient.addColorStop(1, 'rgba(255,255,255,0)');
-                
+
                 exportCtx.globalCompositeOperation = 'destination-out';
                 exportCtx.fillStyle = gradient;
-                exportCtx.fillRect(x, y + height, width, img.mirrorDistance * scale);
-                
-                exportCtx.restore();
+                exportCtx.fillRect(x, mirrorY, width, img.mirrorDistance * scale);
             }
-            
+
             exportCtx.restore();
         });
-        
-        // Download
+
         const link = document.createElement('a');
         link.download = `design-${new Date().getTime()}.png`;
         link.href = exportCanvas.toDataURL('image/png');
         link.click();
     }
 
-    // Initialisering
+    // EVENTS
+    imageUpload.addEventListener('change', handleImageUpload);
+    downloadBtn.addEventListener('click', exportLayout);
+
+    // Init
     initialize();
 });
