@@ -270,8 +270,8 @@ document.addEventListener('DOMContentLoaded', function() {
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
-                // Her kalder du din funktion til at sætte billedet på canvas
                 addImageToCanvas(img, file.name);
+                drawAll(); // fx opdater canvas efter tilføjelse
             };
             img.onerror = function() {
                 console.error('Fejl ved indlæsning af billede:', file.name);
@@ -284,6 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
         reader.readAsDataURL(file);
     });
 }
+
 
 
     function addImageToCanvas(img, filename) {
