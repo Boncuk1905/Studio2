@@ -72,10 +72,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resizeCanvasToContainer() {
-        const container = canvas.parentElement;
+    const container = canvas.parentElement;
+    if (container) {
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
     }
+}
 
     function renderLoop() {
         render();
@@ -256,33 +258,51 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.restore();
     }
 
-    function handleImageUpload(e) {
+   function handleImageUpload(e) {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    
+    // Tjek om der er filer
+    if (!files || files.length === 0) {
+        console.log('Ingen filer valgt');
+        return;
+    }
 
-    Array.from(files).forEach(file => {
-        if (!file.type.startsWith('image/')) {
+    // Vis en midlertidig markør på canvas
+    state.temporaryMarker = true;
+
+    // Behandl hver fil
+    Array.from(files).forEach((file, index) => {
+        // Tjek om filen er et billede
+        if (!file.type.match('image.*')) {
             console.log('Ignorerer ikke-billede:', file.name);
             return;
         }
 
         const reader = new FileReader();
+        
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
-                addImageToCanvas(img, file.name);
-                drawAll(); // fx opdater canvas efter tilføjelse
+                // Tilføj billede til canvas med en lille forsinkelse for at undgå overlap
+                setTimeout(() => {
+                    addImageToCanvas(img, file.name);
+                }, index * 100); // 100ms forsinkelse pr. billede
             };
             img.onerror = function() {
                 console.error('Fejl ved indlæsning af billede:', file.name);
             };
             img.src = event.target.result;
         };
-        reader.onerror = function() {
-            console.error('Fejl ved læsning af fil:', file.name);
+        
+        reader.onerror = () => {
+            console.error('Fil læsefejl:', file.name);
         };
+        
         reader.readAsDataURL(file);
     });
+
+    // Nulstil input feltet så samme fil kan uploades igen
+    e.target.value = '';
 }
 
 
