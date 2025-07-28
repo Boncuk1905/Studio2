@@ -562,32 +562,44 @@ showMirror.addEventListener('change', function() {
 
 // Nye hjælpefunktioner til export:
 function calculateContentBounds() {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
     state.images.forEach(img => {
-        const imgRight = img.x + img.width;
-        const imgBottom = img.y + img.height;
+        const x = img.x;
+        const y = img.y;
+        const width = img.width;
+        const height = img.height;
 
-        // Inkluder billedets normale position og størrelse
-        minX = Math.min(minX, img.x);
-        minY = Math.min(minY, img.y);
+        const imgRight = x + width;
+        const imgBottom = y + height;
+
+        console.log('🖼️ Billede:', { x, y, width, height });
+        console.log('   imgBottom:', imgBottom);
+
+        // Inkluder original billedposition
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
         maxX = Math.max(maxX, imgRight);
         maxY = Math.max(maxY, imgBottom);
 
-        // Hvis spejling vises og har opacity & afstand, inkludér spejlingens bund
+        // Inkluder spejlingen, hvis aktiv
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorBottom = imgBottom + img.mirrorDistance + img.height;
+            const mirrorBottom = imgBottom + img.mirrorDistance + height;
+            console.log('   🪞 mirrorBottom:', mirrorBottom);
             maxY = Math.max(maxY, mirrorBottom);
         }
     });
 
-    // Hvis der ikke er nogen billeder (edge-case)
+    // Sikring mod Infinity hvis ingen billeder
     if (minX === Infinity) minX = 0;
     if (minY === Infinity) minY = 0;
     if (maxX === -Infinity) maxX = 0;
     if (maxY === -Infinity) maxY = 0;
 
-    return {
+    const bounds = {
         minX,
         minY,
         maxX,
@@ -595,6 +607,9 @@ function calculateContentBounds() {
         width: maxX - minX,
         height: maxY - minY
     };
+
+    console.log('📐 Beregnede bounds:', bounds);
+    return bounds;
 }
     
 function calculateScaleFactor(bounds, targetSize) {
