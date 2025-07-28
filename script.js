@@ -621,10 +621,34 @@ function calculateScaleFactor(bounds, targetSize) {
 
 function createExportCanvas(bounds, scaleFactor) {
     const canvas = document.createElement('canvas');
-    canvas.width = bounds.width * scaleFactor;
-    canvas.height = bounds.height * scaleFactor;
-    return canvas;
+canvas.width = exportWidth;
+canvas.height = exportHeight;
+
+const ctx = canvas.getContext('2d');
+
+// Find midten
+const centerX = exportWidth / 2;
+const centerY = exportHeight / 2;
+
+// Placer originalbilledet, så det er centreret
+const x = centerX - img.width / 2;
+const y = centerY - img.height / 2;
+
+ctx.save();
+ctx.globalAlpha = img.opacity;
+ctx.drawImage(img.element, x, y, img.width, img.height);
+ctx.restore();
+
+// Tegn spejlingen, hvis aktiv – selv hvis den går ud over canvas
+if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+    ctx.save();
+    ctx.translate(0, y + img.height + img.mirrorDistance);
+    ctx.scale(1, -1); // flip Y
+    ctx.globalAlpha = img.mirrorOpacity;
+    ctx.drawImage(img.element, x, 0, img.width, img.height);
+    ctx.restore();
 }
+
 
 function drawExportBackground(ctx, canvas) {
     if (!transparentBg.checked) {
