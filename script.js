@@ -563,22 +563,41 @@ showMirror.addEventListener('change', function() {
 // Nye hjælpefunktioner til export:
 function calculateContentBounds() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
+
     state.images.forEach(img => {
+        const right = img.x + img.width;
+        const bottom = img.y + img.height;
+
+        // Tag højde for normal billedeplacering
         minX = Math.min(minX, img.x);
         minY = Math.min(minY, img.y);
-        maxX = Math.max(maxX, img.x + img.width);
-        maxY = Math.max(maxY, img.y + img.height);
-        
-        // Inkluder spejlhøjde hvis spejling er aktiveret
-        if (showMirror.checked && img.mirrorOpacity > 0) {
-            maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
+        maxX = Math.max(maxX, right);
+        maxY = Math.max(maxY, bottom);
+
+        // Tag højde for spejling (kun hvis synlig og aktiveret)
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+            const mirrorBottom = bottom + img.mirrorDistance;
+            maxY = Math.max(maxY, mirrorBottom);
+
+            // Hvis du en dag laver spejling i X-retningen, f.eks. sideeffekter:
+            const mirrorLeft = img.x - img.mirrorDistance;  // just in case
+            const mirrorRight = right + img.mirrorDistance;
+
+            minX = Math.min(minX, mirrorLeft);
+            maxX = Math.max(maxX, mirrorRight);
         }
     });
-    
-    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
-}
 
+    return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY
+    };
+}
+    
 function calculateScaleFactor(bounds, targetSize) {
     return Math.min(
         targetSize / bounds.width,
