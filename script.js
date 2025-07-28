@@ -692,39 +692,7 @@ function drawExportImage(ctx, img, x, y, width, height) {
     ctx.restore();
 }
 
-function drawExportMirror(ctx, img, x, y, width, height) {
-    ctx.save();
-    
-    // Beregn spejlingsposition og højde
-    const mirrorY = y + height;
-    const mirrorHeight = (img.mirrorDistance * (height/img.height));
-    
-    // 1. Tegn det spejlede billede
-    ctx.save();
-    ctx.globalAlpha = img.mirrorOpacity;
-    
-    // Anvend spejlingstransformation
-    ctx.translate(0, mirrorY * 2 + mirrorHeight);
-    ctx.scale(1, -1);
-    ctx.drawImage(img.element, x, y, width, height);
-    ctx.restore();
-    
-    // 2. Tilføj fade-effekt
-    const gradient = ctx.createLinearGradient(
-        x, mirrorY,
-        x, mirrorY + mirrorHeight
-    );
-    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, mirrorY, width, mirrorHeight);
-    
-    // 3. Nulstil composite operation
-    ctx.globalCompositeOperation = 'source-over';
-    
-    ctx.restore();
+ctx.restore();
 }
 
 function triggerDownload(canvas) {
