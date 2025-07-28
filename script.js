@@ -622,32 +622,54 @@ function drawExportMirror(ctx, img, x, y, width, height) {
 }
 
 function calculateContentBounds() {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
     state.images.forEach(img => {
-        // Normal billede
-        minX = Math.min(minX, img.x);
-        minY = Math.min(minY, img.y);
-        maxX = Math.max(maxX, img.x + img.width);
-        maxY = Math.max(maxY, img.y + img.height);
-        
-        // Spejleffekt (hvis aktiveret)
+        const x = img.x;
+        const y = img.y;
+        const width = img.width;
+        const height = img.height;
+
+        const imgRight = x + width;
+        const imgBottom = y + height;
+
+        console.log('🖼️ Billede:', { x, y, width, height });
+        console.log('   imgBottom:', imgBottom);
+
+        // Inkluder original billedposition
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, imgRight);
+        maxY = Math.max(maxY, imgBottom);
+
+        // Inkluder spejlingen, hvis aktiv
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
+            const mirrorBottom = imgBottom + img.mirrorDistance + height;
+            console.log('   🪞 mirrorBottom:', mirrorBottom);
+            maxY = Math.max(maxY, mirrorBottom);
         }
     });
-    
-    // Default størrelse hvis ingen billeder
+
+    // Sikring mod Infinity hvis ingen billeder
     if (minX === Infinity) minX = 0;
     if (minY === Infinity) minY = 0;
-    if (maxX === -Infinity) maxX = 100;
-    if (maxY === -Infinity) maxY = 100;
-    
-    return {
-        minX, minY, maxX, maxY,
+    if (maxX === -Infinity) maxX = 0;
+    if (maxY === -Infinity) maxY = 0;
+
+    const bounds = {
+        minX,
+        minY,
+        maxX,
+        maxY,
         width: maxX - minX,
         height: maxY - minY
     };
+
+    console.log('📐 Beregnede bounds:', bounds);
+    return bounds;
 }
 
 function triggerDownload(canvas) {
