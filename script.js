@@ -260,48 +260,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
    function handleImageUpload(e) {
     const files = e.target.files;
-    
-    // Tjek om der er filer
-    if (!files || files.length === 0) {
-        console.log('Ingen filer valgt');
-        return;
-    }
+    if (!files || files.length === 0) return;
 
-    // Vis en midlertidig markør på canvas
-    state.temporaryMarker = true;
-
-    // Behandl hver fil
-    Array.from(files).forEach((file, index) => {
-        // Tjek om filen er et billede
+    Array.from(files).forEach(file => {
         if (!file.type.match('image.*')) {
             console.log('Ignorerer ikke-billede:', file.name);
             return;
         }
 
         const reader = new FileReader();
-        
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
-                // Tilføj billede til canvas med en lille forsinkelse for at undgå overlap
-                setTimeout(() => {
-                    addImageToCanvas(img, file.name);
-                }, index * 100); // 100ms forsinkelse pr. billede
+                addImageToCanvas(img, file.name);
             };
             img.onerror = function() {
                 console.error('Fejl ved indlæsning af billede:', file.name);
             };
             img.src = event.target.result;
         };
-        
-        reader.onerror = () => {
-            console.error('Fil læsefejl:', file.name);
-        };
-        
+        reader.onerror = () => console.error('Fil læsefejl');
         reader.readAsDataURL(file);
     });
-
-    // Nulstil input feltet så samme fil kan uploades igen
+    
+    // Reset input for at tillade upload af samme fil igen
     e.target.value = '';
 }
 
@@ -560,254 +542,122 @@ showMirror.addEventListener('change', function() {
             resizeCanvasToContainer();
         });
     }
-
-    function exportLayout() {
-    // 1. Beregn den nødvendige eksportstørrelse
-   const sizeInput = document.getElementById("exportSizeInput").value.trim().toLowerCase();
-let customWidth = null;
-let customHeight = null;
-
-if (sizeInput === "auto") {
+function exportLayout() {
+    // 1. Beregn indholdets dimensioner
     const bounds = calculateContentBounds();
-    customWidth = bounds.width;
-    customHeight = bounds.height;
-} else if (/^\d+x\d+$/.test(sizeInput)) {
-    const [w, h] = sizeInput.split("x").map(Number);
-    customWidth = w;
-    customHeight = h;
-} else {
-    alert("Skriv en gyldig størrelse som fx 800x600 eller 'auto'");
-    return;
-}
-
     
-    // 2. Find alle dimensioner (inkl. spejleffekter)
-    let bounds = calculateContentBounds();
-    
-    // 3. Skaleringsfaktor
-    const scaleFactor = calculateScaleFactor(bounds, exportSizeValue);
-    
-    // 4. Opret eksport-canvas
-    const exportCanvas = createExportCanvas(bounds, scaleFactor);
+    // 2. Opret eksport-canvas
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = bounds.width;
+    exportCanvas.height = bounds.height;
     const exportCtx = exportCanvas.getContext('2d');
     
-    // 5. Tegn baggrund
-    drawExportBackground(exportCtx, exportCanvas);
-    
-    // 6. Tegn alle elementer
-    drawAllExportElements(exportCtx, bounds, scaleFactor, customWidth, customHeight);
-
-    
-    // 7. Trigger download
-    triggerDownload(exportCanvas);
-}
-
-// Nye hjælpefunktioner til export:
-function calculateContentBounds() {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    state.images.forEach(img => {
-        const x = img.x;
-        const y = img.y;
-        const width = img.width;
-        const height = img.height;
-
-        const imgRight = x + width;
-        const imgBottom = y + height;
-
-        console.log('🖼️ Billede:', { x, y, width, height });
-        console.log('   imgBottom:', imgBottom);
-
-        // Inkluder original billedposition
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, imgRight);
-        maxY = Math.max(maxY, imgBottom);
-
-        // Inkluder spejlingen, hvis aktiv
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorBottom = imgBottom + img.mirrorDistance + height;
-            console.log('   🪞 mirrorBottom:', mirrorBottom);
-            maxY = Math.max(maxY, mirrorBottom);
-        }
-    });
-
-    // Sikring mod Infinity hvis ingen billeder
-    if (minX === Infinity) minX = 0;
-    if (minY === Infinity) minY = 0;
-    if (maxX === -Infinity) maxX = 0;
-    if (maxY === -Infinity) maxY = 0;
-
-    const bounds = {
-        minX,
-        minY,
-        maxX,
-        maxY,
-        width: maxX - minX,
-        height: maxY - minY
-    };
-
-    console.log('📐 Beregnede bounds:', bounds);
-    return bounds;
-}
-    
-function calculateScaleFactor(bounds, targetSize) {
-    return Math.min(
-        targetSize / bounds.width,
-        targetSize / bounds.height
-    );
-}
-
-function createExportCanvas(bounds, scaleFactor) {
-    const canvas = document.createElement('canvas');
-canvas.width = customWidth;
-canvas.height = customHeight;
-
-
-const ctx = canvas.getContext('2d');
-
-// Find midten
-const centerX = exportWidth / 2;
-const centerY = exportHeight / 2;
-
-// Placer originalbilledet, så det er centreret
-const x = centerX - img.width / 2;
-const y = centerY - img.height / 2;
-
-ctx.save();
-ctx.globalAlpha = img.opacity;
-ctx.drawImage(img.element, x, y, img.width, img.height);
-ctx.restore();
-
-// Tegn spejlingen, hvis aktiv – selv hvis den går ud over canvas
-if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-    ctx.save();
-    ctx.translate(0, y + img.height + img.mirrorDistance);
-    ctx.scale(1, -1); // flip Y
-    ctx.globalAlpha = img.mirrorOpacity;
-    ctx.drawImage(img.element, x, 0, img.width, img.height);
-    ctx.restore();
-}
-
-
-function drawExportBackground(ctx, canvas) {
+    // 3. Tegn baggrund (hvis ikke transparent)
     if (!transparentBg.checked) {
-        ctx.fillStyle = bgColor.value;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        exportCtx.fillStyle = bgColor.value;
+        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
     }
-}
-
-function drawAllExportElements(ctx, bounds, scaleFactor, customWidth, customHeight) {
-    // Beregn forskydning for at centrere
-    const offsetX = (customWidth - bounds.width * scaleFactor) / 2;
-    const offsetY = (customHeight - bounds.height * scaleFactor) / 2;
-
-    // Sorter billeder efter z-index
+    
+    // 4. Tegn alle billeder (sorteret efter z-index)
     const sortedImages = [...state.images].sort((a, b) => a.number - b.number);
-
+    
     sortedImages.forEach(img => {
-        const x = offsetX + (img.x - bounds.minX) * scaleFactor;
-        const y = offsetY + (img.y - bounds.minY) * scaleFactor;
-        const width = img.width * scaleFactor;
-        const height = img.height * scaleFactor;
-
-        ctx.save();
-        ctx.globalAlpha = img.opacity;
-
+        // Beregn position relativt til bounds
+        const x = img.x - bounds.minX;
+        const y = img.y - bounds.minY;
+        
         // Tegn hovedbilledet
-        if (img.flipped) {
-            ctx.translate(x + width, y);
-            ctx.scale(-1, 1);
-            ctx.drawImage(img.element, 0, 0, width, height);
-        } else {
-            ctx.drawImage(img.element, x, y, width, height);
-        }
-
+        drawExportImage(exportCtx, img, x, y, img.width, img.height);
+        
         // Tegn spejleffekt hvis aktiveret
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorY = y + height;
-            const mirrorHeight = (img.mirrorDistance * (height / img.height));
-
-            ctx.save();
-            ctx.globalAlpha = img.mirrorOpacity;
-            ctx.translate(0, mirrorY * 2 + mirrorHeight);
-            ctx.scale(1, -1);
-            ctx.drawImage(img.element, x, y, width, height);
-            ctx.restore();
-
-            const gradient = ctx.createLinearGradient(
-                x, mirrorY,
-                x, mirrorY + mirrorHeight
-            );
-            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = gradient;
-            ctx.fillRect(x, mirrorY, width, mirrorHeight);
-            ctx.globalCompositeOperation = 'source-over';
+            drawExportMirror(exportCtx, img, x, y, img.width, img.height);
         }
-
-        ctx.restore();
     });
+    
+    // 5. Trigger download
+    triggerDownload(exportCanvas);
 }
-
 
 function drawExportImage(ctx, img, x, y, width, height) {
     ctx.save();
     ctx.globalAlpha = img.opacity;
-
-    // Tegn hovedbilledet (spejlvendt hvis flipped)
+    
     if (img.flipped) {
         ctx.translate(x + width, y);
         ctx.scale(-1, 1);
         ctx.drawImage(img.element, 0, 0, width, height);
-        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for spejling
     } else {
         ctx.drawImage(img.element, x, y, width, height);
     }
-
-    // Tegn spejling under billedet hvis det skal med
-    if (img.showMirror) {
-        ctx.save();
-
-        // Position spejlingen lige under billedet
-        ctx.translate(x, y + height);
-
-        // Spejl lodret
-        ctx.scale(1, -1);
-
-        // Sæt opacity for spejling
-        ctx.globalAlpha = img.mirrorOpacity || 0.5;
-
-        // Tegn spejlingen
-        ctx.drawImage(img.element, 0, 0, width, height);
-
-        // Lav gradient for at fade spejlingen ud
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
-
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.restore();
-    }
-
-        ctx.restore();
+    
+    ctx.restore();
 }
 
+function drawExportMirror(ctx, img, x, y, width, height) {
+    const mirrorY = y + height;
+    const mirrorHeight = img.mirrorDistance;
+    
+    // 1. Tegn det spejlede billede
+    ctx.save();
+    ctx.globalAlpha = img.mirrorOpacity;
+    ctx.translate(0, mirrorY * 2 + mirrorHeight);
+    ctx.scale(1, -1);
+    ctx.drawImage(img.element, x, y, width, height);
+    ctx.restore();
+    
+    // 2. Tilføj fade-effekt
+    const gradient = ctx.createLinearGradient(
+        x, mirrorY,
+        x, mirrorY + mirrorHeight
+    );
+    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, mirrorY, width, mirrorHeight);
+    ctx.restore();
+}
+
+function calculateContentBounds() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    state.images.forEach(img => {
+        // Normal billede
+        minX = Math.min(minX, img.x);
+        minY = Math.min(minY, img.y);
+        maxX = Math.max(maxX, img.x + img.width);
+        maxY = Math.max(maxY, img.y + img.height);
+        
+        // Spejleffekt (hvis aktiveret)
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+            maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
+        }
+    });
+    
+    // Default størrelse hvis ingen billeder
+    if (minX === Infinity) minX = 0;
+    if (minY === Infinity) minY = 0;
+    if (maxX === -Infinity) maxX = 100;
+    if (maxY === -Infinity) maxY = 100;
+    
+    return {
+        minX, minY, maxX, maxY,
+        width: maxX - minX,
+        height: maxY - minY
+    };
+}
 
 function triggerDownload(canvas) {
     try {
         const link = document.createElement('a');
-        link.download = `design-export-${new Date().getTime()}.png`;
+        link.download = `design-export-${Date.now()}.png`;
         link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         
         // Ryd op for memory-leaks
         setTimeout(() => URL.revokeObjectURL(link.href), 100);
