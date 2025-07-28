@@ -537,120 +537,146 @@ showMirror.addEventListener('change', function() {
     }
 
     function exportLayout() {
-    if (state.images.length === 0) {
-        alert('Ingen billeder at eksportere!');
-        return;
-    }
-
-    console.log("=== EKSPORT DEBUG ===");
-    console.log("Show Mirror:", showMirror.checked);
-    console.log("Billedindstillinger:", state.images.map(img => ({
-        navn: img.filename,
-        spejl: {
-            opacity: img.mirrorOpacity,
-            distance: img.mirrorDistance,
-            aktiv: showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0
-        },
-        position: `(${img.x},${img.y})`,
-        størrelse: `${img.width}x${img.height}`
-    })));
-
-    const exportCanvas = document.createElement('canvas');
+    // 1. Beregn den nødvendige eksportstørrelse
+    const exportSizeValue = parseInt(exportSize.value);
+    
+    // 2. Find alle dimensioner (inkl. spejleffekter)
+    let bounds = calculateContentBounds();
+    
+    // 3. Skaleringsfaktor
+    const scaleFactor = calculateScaleFactor(bounds, exportSizeValue);
+    
+    // 4. Opret eksport-canvas
+    const exportCanvas = createExportCanvas(bounds, scaleFactor);
     const exportCtx = exportCanvas.getContext('2d');
-    exportCtx.imageSmoothingQuality = 'high';
+    
+    // 5. Tegn baggrund
+    drawExportBackground(exportCtx, exportCanvas);
+    
+    // 6. Tegn alle elementer
+    drawAllExportElements(exportCtx, bounds, scaleFactor);
+    
+    // 7. Trigger download
+    triggerDownload(exportCanvas);
+}
 
-    // Beregn canvas-størrelse med præcis spejlhøjde
-    let bounds = {
-        left: Infinity,
-        right: -Infinity,
-        top: Infinity,
-        bottom: -Infinity
-    };
-
+// Nye hjælpefunktioner til export:
+function calculateContentBounds() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
     state.images.forEach(img => {
-        let bottom = img.y + img.height;
-
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorBottom = img.y + img.height + img.height + img.mirrorDistance;
-            bottom = Math.max(bottom, mirrorBottom);
+        // Normal billede
+        minX = Math.min(minX, img.x);
+        minY = Math.min(minY, img.y);
+        maxX = Math.max(maxX, img.x + img.width);
+        maxY = Math.max(maxY, img.y + img.height);
+        
+        // Spejleffekt
+        if (img.mirrorOpacity > 0) {
+            maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
         }
-
-        bounds.left = Math.min(bounds.left, img.x);
-        bounds.right = Math.max(bounds.right, img.x + img.width);
-        bounds.top = Math.min(bounds.top, img.y);
-        bounds.bottom = Math.max(bounds.bottom, bottom);
     });
+    
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+}
 
-    const contentWidth = bounds.right - bounds.left;
-    const contentHeight = bounds.bottom - bounds.top;
-    const padding = 40;
+function calculateScaleFactor(bounds, targetSize) {
+    return Math.min(
+        targetSize / bounds.width,
+        targetSize / bounds.height
+    );
+}
 
-    exportCanvas.width = contentWidth + padding * 2;
-    exportCanvas.height = contentHeight + padding * 2;
+function createExportCanvas(bounds, scaleFactor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = bounds.width * scaleFactor;
+    canvas.height = bounds.height * scaleFactor;
+    return canvas;
+}
 
+function drawExportBackground(ctx, canvas) {
     if (!transparentBg.checked) {
-        exportCtx.fillStyle = bgColor.value;
-        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        ctx.fillStyle = bgColor.value;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+}
 
+function drawAllExportElements(ctx, bounds, scaleFactor) {
     state.images.forEach(img => {
-        const x = padding + img.x - bounds.left;
-        const y = padding + img.y - bounds.top;
-        const width = img.width;
-        const height = img.height;
-
-        exportCtx.save();
-        exportCtx.globalAlpha = img.opacity;
-
-        if (img.flipped) {
-            exportCtx.translate(x + width, y);
-            exportCtx.scale(-1, 1);
-            exportCtx.drawImage(img.element, 0, 0, width, height);
-        } else {
-            exportCtx.drawImage(img.element, x, y, width, height);
-        }
-        exportCtx.restore();
-
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorY = y + height;
-            const mirrorHeight = img.mirrorDistance;
-
-            exportCtx.save();
-            exportCtx.globalAlpha = img.mirrorOpacity;
-
-            // Spejlbilledet
-            exportCtx.setTransform(1, 0, 0, -1, 0, mirrorY * 2);
-            exportCtx.drawImage(img.element, x, -y - height, width, height);
-
-            // Fade effekt
-            const gradient = exportCtx.createLinearGradient(
-                x, mirrorY,
-                x, mirrorY + mirrorHeight
-            );
-            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-            exportCtx.globalCompositeOperation = 'destination-out';
-            exportCtx.fillStyle = gradient;
-            exportCtx.fillRect(x, mirrorY, width, mirrorHeight);
-
-            exportCtx.restore();
-            exportCtx.globalCompositeOperation = 'source-over';
+        const x = (img.x - bounds.minX) * scaleFactor;
+        const y = (img.y - bounds.minY) * scaleFactor;
+        const width = img.width * scaleFactor;
+        const height = img.height * scaleFactor;
+        
+        // Tegn hovedbillede
+        drawExportImage(ctx, img, x, y, width, height);
+        
+        // Tegn spejling (hvis aktiveret)
+        if (img.mirrorOpacity > 0) {
+            drawExportMirror(ctx, img, x, y, width, height);
         }
     });
+}
 
+function drawExportImage(ctx, img, x, y, width, height) {
+    ctx.save();
+    ctx.globalAlpha = img.opacity;
+    
+    if (img.flipped) {
+        ctx.translate(x + width, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img.element, 0, 0, width, height);
+    } else {
+        ctx.drawImage(img.element, x, y, width, height);
+    }
+    
+    ctx.restore();
+}
+
+function drawExportMirror(ctx, img, x, y, width, height) {
+    ctx.save();
+    
+    // Gradient for spejleffekt
+    const mirrorHeight = (img.mirrorDistance * (height/img.height));
+    const gradient = ctx.createLinearGradient(
+        x, y + height,
+        x, y + height + mirrorHeight
+    );
+    gradient.addColorStop(0, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    
+    // Klipområde
+    ctx.beginPath();
+    ctx.rect(x, y + height, width, mirrorHeight);
+    ctx.clip();
+    
+    // Tegn effekter
+    ctx.globalAlpha = img.mirrorOpacity * 0.7;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y + height, width, mirrorHeight);
+    
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(
+        img.element,
+        x, y + height + mirrorHeight,
+        width, -height
+    );
+    
+    ctx.restore();
+}
+
+function triggerDownload(canvas) {
     try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_');
-        const filename = `design_${timestamp}.png`;
-
         const link = document.createElement('a');
-        link.download = filename;
-        link.href = exportCanvas.toDataURL('image/png', 1.0);
+        link.download = `design-export-${new Date().getTime()}.png`;
+        link.href = canvas.toDataURL('image/png');
         link.click();
-
-        console.log("Eksport fuldført:", filename);
+        
+        // Ryd op for memory-leaks
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
     } catch (error) {
-        console.error('Eksport fejlede:', error);
+        console.error('Download fejlede:', error);
         alert('Der opstod en fejl under eksport. Prøv igen.');
     }
 }
