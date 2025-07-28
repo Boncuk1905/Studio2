@@ -538,7 +538,23 @@ showMirror.addEventListener('change', function() {
 
     function exportLayout() {
     // 1. Beregn den nødvendige eksportstørrelse
-    const exportSizeValue = parseInt(exportSize.value);
+   const sizeInput = document.getElementById("exportSizeInput").value.trim().toLowerCase();
+let customWidth = null;
+let customHeight = null;
+
+if (sizeInput === "auto") {
+    const bounds = calculateContentBounds();
+    customWidth = bounds.width;
+    customHeight = bounds.height;
+} else if (/^\d+x\d+$/.test(sizeInput)) {
+    const [w, h] = sizeInput.split("x").map(Number);
+    customWidth = w;
+    customHeight = h;
+} else {
+    alert("Skriv en gyldig størrelse som fx 800x600 eller 'auto'");
+    return;
+}
+
     
     // 2. Find alle dimensioner (inkl. spejleffekter)
     let bounds = calculateContentBounds();
@@ -554,7 +570,8 @@ showMirror.addEventListener('change', function() {
     drawExportBackground(exportCtx, exportCanvas);
     
     // 6. Tegn alle elementer
-    drawAllExportElements(exportCtx, bounds, scaleFactor);
+    drawAllExportElements(exportCtx, bounds, scaleFactor, customWidth, customHeight);
+
     
     // 7. Trigger download
     triggerDownload(exportCanvas);
@@ -621,8 +638,9 @@ function calculateScaleFactor(bounds, targetSize) {
 
 function createExportCanvas(bounds, scaleFactor) {
     const canvas = document.createElement('canvas');
-canvas.width = exportWidth;
-canvas.height = exportHeight;
+canvas.width = customWidth;
+canvas.height = customHeight;
+
 
 const ctx = canvas.getContext('2d');
 
@@ -657,17 +675,20 @@ function drawExportBackground(ctx, canvas) {
     }
 }
 
-function drawAllExportElements(ctx, bounds, scaleFactor) {
+function drawAllExportElements(ctx, bounds, scaleFactor, customWidth, customHeight) {
+    // Beregn forskydning for at centrere
+    const offsetX = (customWidth - bounds.width * scaleFactor) / 2;
+    const offsetY = (customHeight - bounds.height * scaleFactor) / 2;
+
     // Sorter billeder efter z-index
     const sortedImages = [...state.images].sort((a, b) => a.number - b.number);
 
     sortedImages.forEach(img => {
-        const x = (img.x - bounds.minX) * scaleFactor;
-        const y = (img.y - bounds.minY) * scaleFactor;
+        const x = offsetX + (img.x - bounds.minX) * scaleFactor;
+        const y = offsetY + (img.y - bounds.minY) * scaleFactor;
         const width = img.width * scaleFactor;
         const height = img.height * scaleFactor;
 
-        // Tegn billedet (samme logik som i drawSingleImage)
         ctx.save();
         ctx.globalAlpha = img.opacity;
 
@@ -680,40 +701,35 @@ function drawAllExportElements(ctx, bounds, scaleFactor) {
             ctx.drawImage(img.element, x, y, width, height);
         }
 
-        // Tegn spejleffekt hvis aktiveret (samme betingelser som i preview)
+        // Tegn spejleffekt hvis aktiveret
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             const mirrorY = y + height;
-            const mirrorHeight = (img.mirrorDistance * (height/img.height));
-            
-            // 1. Tegn det spejlede billede
+            const mirrorHeight = (img.mirrorDistance * (height / img.height));
+
             ctx.save();
             ctx.globalAlpha = img.mirrorOpacity;
-            
-            // Anvend spejlingstransformation
             ctx.translate(0, mirrorY * 2 + mirrorHeight);
             ctx.scale(1, -1);
             ctx.drawImage(img.element, x, y, width, height);
             ctx.restore();
-            
-            // 2. Tilføj fade-effekt
+
             const gradient = ctx.createLinearGradient(
                 x, mirrorY,
                 x, mirrorY + mirrorHeight
             );
             gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
             gradient.addColorStop(1, 'rgba(255,255,255,0)');
-            
+
             ctx.globalCompositeOperation = 'destination-out';
             ctx.fillStyle = gradient;
             ctx.fillRect(x, mirrorY, width, mirrorHeight);
-            
-            // 3. Nulstil composite operation
             ctx.globalCompositeOperation = 'source-over';
         }
-        
+
         ctx.restore();
     });
 }
+
 
 function drawExportImage(ctx, img, x, y, width, height) {
     ctx.save();
