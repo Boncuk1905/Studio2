@@ -798,4 +798,5 @@ function triggerDownload(canvas) {
 }
     
     // Initialize the app
-    initialize();
+     initialize();
+});
