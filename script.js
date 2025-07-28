@@ -565,14 +565,13 @@ function calculateContentBounds() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
     state.images.forEach(img => {
-        // Normal billede
         minX = Math.min(minX, img.x);
         minY = Math.min(minY, img.y);
         maxX = Math.max(maxX, img.x + img.width);
         maxY = Math.max(maxY, img.y + img.height);
         
-        // Spejleffekt (hvis aktiveret)
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+        // Inkluder spejlhøjde hvis spejling er aktiveret
+        if (showMirror.checked && img.mirrorOpacity > 0) {
             maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
         }
     });
@@ -602,19 +601,60 @@ function drawExportBackground(ctx, canvas) {
 }
 
 function drawAllExportElements(ctx, bounds, scaleFactor) {
-    state.images.forEach(img => {
+    // Sorter billeder efter z-index
+    const sortedImages = [...state.images].sort((a, b) => a.number - b.number);
+
+    sortedImages.forEach(img => {
         const x = (img.x - bounds.minX) * scaleFactor;
         const y = (img.y - bounds.minY) * scaleFactor;
         const width = img.width * scaleFactor;
         const height = img.height * scaleFactor;
-        
-        // Tegn hovedbillede
-        drawExportImage(ctx, img, x, y, width, height);
-        
-        // Tegn spejling (hvis aktiveret)
-        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            drawExportMirror(ctx, img, x, y, width, height);
+
+        // Tegn billedet (samme logik som i drawSingleImage)
+        ctx.save();
+        ctx.globalAlpha = img.opacity;
+
+        // Tegn hovedbilledet
+        if (img.flipped) {
+            ctx.translate(x + width, y);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img.element, 0, 0, width, height);
+        } else {
+            ctx.drawImage(img.element, x, y, width, height);
         }
+
+        // Tegn spejleffekt hvis aktiveret (samme betingelser som i preview)
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
+            const mirrorY = y + height;
+            const mirrorHeight = (img.mirrorDistance * (height/img.height));
+            
+            // 1. Tegn det spejlede billede
+            ctx.save();
+            ctx.globalAlpha = img.mirrorOpacity;
+            
+            // Anvend spejlingstransformation
+            ctx.translate(0, mirrorY * 2 + mirrorHeight);
+            ctx.scale(1, -1);
+            ctx.drawImage(img.element, x, y, width, height);
+            ctx.restore();
+            
+            // 2. Tilføj fade-effekt
+            const gradient = ctx.createLinearGradient(
+                x, mirrorY,
+                x, mirrorY + mirrorHeight
+            );
+            gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x, mirrorY, width, mirrorHeight);
+            
+            // 3. Nulstil composite operation
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        
+        ctx.restore();
     });
 }
 
