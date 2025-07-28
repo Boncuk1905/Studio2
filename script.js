@@ -680,20 +680,48 @@ function drawAllExportElements(ctx, bounds, scaleFactor) {
 function drawExportImage(ctx, img, x, y, width, height) {
     ctx.save();
     ctx.globalAlpha = img.opacity;
-    
+
+    // Tegn hovedbilledet (spejlvendt hvis flipped)
     if (img.flipped) {
         ctx.translate(x + width, y);
         ctx.scale(-1, 1);
         ctx.drawImage(img.element, 0, 0, width, height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for spejling
     } else {
         ctx.drawImage(img.element, x, y, width, height);
     }
-    
-    ctx.restore();
+
+    // Tegn spejling under billedet hvis det skal med
+    if (img.showMirror) {
+        ctx.save();
+
+        // Position spejlingen lige under billedet
+        ctx.translate(x, y + height);
+
+        // Spejl lodret
+        ctx.scale(1, -1);
+
+        // Sæt opacity for spejling
+        ctx.globalAlpha = img.mirrorOpacity || 0.5;
+
+        // Tegn spejlingen
+        ctx.drawImage(img.element, 0, 0, width, height);
+
+        // Lav gradient for at fade spejlingen ud
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.restore();
+    }
+
+        ctx.restore();
 }
 
-ctx.restore();
-}
 
 function triggerDownload(canvas) {
     try {
