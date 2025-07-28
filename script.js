@@ -257,30 +257,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleImageUpload(e) {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-        Array.from(files).forEach(file => {
-            if (!file.type.match('image.*')) {
-                console.log('Ignorerer ikke-billede:', file.name);
-                return;
-            }
+    Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+            console.log('Ignorerer ikke-billede:', file.name);
+            return;
+        }
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    addImageToCanvas(img, file.name);
-                };
-                img.onerror = function() {
-                    console.error('Fejl ved indlæsning af billede:', file.name);
-                };
-                img.src = event.target.result;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                // Her kalder du din funktion til at sætte billedet på canvas
+                addImageToCanvas(img, file.name);
             };
-            reader.onerror = () => console.error('Fil læsefejl');
-            reader.readAsDataURL(file);
-        });
-    }
+            img.onerror = function() {
+                console.error('Fejl ved indlæsning af billede:', file.name);
+            };
+            img.src = event.target.result;
+        };
+        reader.onerror = function() {
+            console.error('Fejl ved læsning af fil:', file.name);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 
     function addImageToCanvas(img, filename) {
     const newImage = {
