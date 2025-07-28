@@ -565,28 +565,27 @@ function calculateContentBounds() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     state.images.forEach(img => {
-        const right = img.x + img.width;
-        const bottom = img.y + img.height;
+        const imgRight = img.x + img.width;
+        const imgBottom = img.y + img.height;
 
-        // Tag højde for normal billedeplacering
+        // Inkluder billedets normale position og størrelse
         minX = Math.min(minX, img.x);
         minY = Math.min(minY, img.y);
-        maxX = Math.max(maxX, right);
-        maxY = Math.max(maxY, bottom);
+        maxX = Math.max(maxX, imgRight);
+        maxY = Math.max(maxY, imgBottom);
 
-        // Tag højde for spejling (kun hvis synlig og aktiveret)
+        // Hvis spejling vises og har opacity & afstand, inkludér spejlingens bund
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorBottom = bottom + img.mirrorDistance;
+            const mirrorBottom = imgBottom + img.mirrorDistance + img.height;
             maxY = Math.max(maxY, mirrorBottom);
-
-            // Hvis du en dag laver spejling i X-retningen, f.eks. sideeffekter:
-            const mirrorLeft = img.x - img.mirrorDistance;  // just in case
-            const mirrorRight = right + img.mirrorDistance;
-
-            minX = Math.min(minX, mirrorLeft);
-            maxX = Math.max(maxX, mirrorRight);
         }
     });
+
+    // Hvis der ikke er nogen billeder (edge-case)
+    if (minX === Infinity) minX = 0;
+    if (minY === Infinity) minY = 0;
+    if (maxX === -Infinity) maxX = 0;
+    if (maxY === -Infinity) maxY = 0;
 
     return {
         minX,
