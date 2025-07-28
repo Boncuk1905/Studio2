@@ -571,8 +571,8 @@ function calculateContentBounds() {
         maxX = Math.max(maxX, img.x + img.width);
         maxY = Math.max(maxY, img.y + img.height);
         
-        // Spejleffekt
-        if (img.mirrorOpacity > 0) {
+        // Spejleffekt (hvis aktiveret)
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             maxY = Math.max(maxY, img.y + img.height + img.mirrorDistance);
         }
     });
@@ -612,7 +612,7 @@ function drawAllExportElements(ctx, bounds, scaleFactor) {
         drawExportImage(ctx, img, x, y, width, height);
         
         // Tegn spejling (hvis aktiveret)
-        if (img.mirrorOpacity > 0) {
+        if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
             drawExportMirror(ctx, img, x, y, width, height);
         }
     });
@@ -636,32 +636,34 @@ function drawExportImage(ctx, img, x, y, width, height) {
 function drawExportMirror(ctx, img, x, y, width, height) {
     ctx.save();
     
-    // Gradient for spejleffekt
+    // Beregn spejlingsposition og højde
+    const mirrorY = y + height;
     const mirrorHeight = (img.mirrorDistance * (height/img.height));
+    
+    // 1. Tegn det spejlede billede
+    ctx.save();
+    ctx.globalAlpha = img.mirrorOpacity;
+    
+    // Anvend spejlingstransformation
+    ctx.translate(0, mirrorY * 2 + mirrorHeight);
+    ctx.scale(1, -1);
+    ctx.drawImage(img.element, x, y, width, height);
+    ctx.restore();
+    
+    // 2. Tilføj fade-effekt
     const gradient = ctx.createLinearGradient(
-        x, y + height,
-        x, y + height + mirrorHeight
+        x, mirrorY,
+        x, mirrorY + mirrorHeight
     );
-    gradient.addColorStop(0, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(0, `rgba(255,255,255,${img.mirrorOpacity})`);
     gradient.addColorStop(1, 'rgba(255,255,255,0)');
     
-    // Klipområde
-    ctx.beginPath();
-    ctx.rect(x, y + height, width, mirrorHeight);
-    ctx.clip();
-    
-    // Tegn effekter
-    ctx.globalAlpha = img.mirrorOpacity * 0.7;
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = gradient;
-    ctx.fillRect(x, y + height, width, mirrorHeight);
+    ctx.fillRect(x, mirrorY, width, mirrorHeight);
     
+    // 3. Nulstil composite operation
     ctx.globalCompositeOperation = 'source-over';
-    ctx.drawImage(
-        img.element,
-        x, y + height + mirrorHeight,
-        width, -height
-    );
     
     ctx.restore();
 }
