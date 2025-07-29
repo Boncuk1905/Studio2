@@ -636,19 +636,18 @@ function calculateContentBounds() {
         const imgRight = x + width;
         const imgBottom = y + height;
 
-        console.log('🖼️ Billede:', { x, y, width, height });
-        console.log('   imgBottom:', imgBottom);
-
-        // Inkluder original billedposition
+        // Opdater normal billedegrænse
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
         maxX = Math.max(maxX, imgRight);
         maxY = Math.max(maxY, imgBottom);
 
-        // Inkluder spejlingen, hvis aktiv
+        // Inkluder spejling, men kun op til realistisk maks
         if (showMirror.checked && img.mirrorOpacity > 0 && img.mirrorDistance > 0) {
-            const mirrorBottom = imgBottom + img.mirrorDistance + height;
-            console.log('   🪞 mirrorBottom:', mirrorBottom);
+            const mirrorHeight = img.mirrorDistance * (height / img.originalHeight);
+            const mirrorBottom = imgBottom + mirrorHeight;
+
+            // Her kan du evt. begrænse hvor meget spejling der inkluderes
             maxY = Math.max(maxY, mirrorBottom);
         }
     });
@@ -668,7 +667,6 @@ function calculateContentBounds() {
         height: maxY - minY
     };
 
-    console.log('📐 Beregnede bounds:', bounds);
     return bounds;
 }
 
